@@ -500,3 +500,9 @@
 - 已确认设备上 release 包权限清单不包含 `android.permission.CAMERA` 和 `android.permission.INTERNET`。
 - 已通过 `cmd package resolve-activity --brief com.local.exifhelper` 确认 release 启动入口为 `com.local.exifhelper/.MainActivity`。
 - 已通过 `pm list packages` 确认设备仍同时存在 `com.local.exifhelper` 和 `com.local.exifhelper.debug`。
+
+### 明确 Android 归档文件名规则
+
+- 已将 Android 发布/分发归档命名规则从 `<软件名>-v<语义版本>-android-<yyyyMMdd>.apk` 进一步明确为 `EXIF_Helper-v<语义版本>-android-<yyyyMMdd>.apk`。
+- 该规则变更只影响后续发布/分发归档文件名说明，不改变当前 Release 构建、签名、权限或安装包内容。
+- 本轮验证方式为检查 `AGENTS.md` 与 `develop_log.md` 的文档 diff，确认改动范围仅为项目规则和开发日志。
