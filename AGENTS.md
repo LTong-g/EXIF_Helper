@@ -1,4 +1,4 @@
-﻿Read this file as UTF-8.
+Read this file as UTF-8.
 
 # AGENTS 协作说明
 
@@ -201,9 +201,21 @@ AI 给方案时使用以下顺序：
 
 当前项目规则：
 
-- v0.1 同时支持 jpg、jpeg 和 png 目标图片写入。
-- v0.1 支持克隆时间、地理位置、时区、相机信息、镜头信息和曝光参数。
+- 1.0.0 同时支持 jpg、jpeg 和 png 目标图片写入。
+- 1.0.0 支持克隆时间、地理位置、时区、相机信息、镜头信息和曝光参数。
 - 所有可克隆元数据项必须在克隆内容页面以复选框形式展示，用户只克隆勾选项。
 - 主页面只负责选择源照片和目标照片，不在主页面展示克隆内容勾选项。
 - 主页面目标照片选择不设置应用内数量上限；实际数量受系统选择器、内存、处理性能和权限返回结果限制。
 - 主页面底部提供“设置克隆”按钮；点击后进入新的克隆内容页面进行勾选和执行。
+- 主页面选择照片时提供应用内入口选择，可走系统相册/图库界面或 SAF 文件选择器；系统选择器内部不做自定义按钮。
+- 需要实时查看 UI 或 JS 改动时使用 debug 包连接 Metro，不安装 release 包；release 包只用于最终离线验收。
+- debug 包使用 `com.local.exifhelper.debug` 和“EXIF助手 Debug”名称，release 包使用 `com.local.exifhelper` 和“EXIF助手”名称，以便同一设备同时安装调试包和离线验收包。
+- release 构建必须使用本机独立 release keystore；不得使用 debug keystore 签 release 包；真实 keystore、密码、alias 和 key password 不得入库或写入日志。
+- Android 安装包只有准备发布或分发时才需要复制归档并重命名；普通构建不要求每次复制重命名。
+- Android 安装包发布/分发归档命名格式为 `<软件名>-v<语义版本>-android-<yyyyMMdd>.apk`，归档位置为 `dist/`，归档来源必须是 Release APK。
+- Android 安装包发布/分发归档中的 `<语义版本>` 以软件版本号为准；当前软件版本号为 `1.0.0`，对应 `app.json`、`package.json` 和 Android `versionName`。
+- 已经归档的版本视为已发布产物，不得覆盖同名归档；除非先询问用户并得到明确同意，否则禁止覆盖任何已归档版本。
+- Android Release APK 使用本机私有 release 签名；`android/app/debug.keystore` 仅用于 Debug，Release 构建不得使用 `signingConfigs.debug`。
+- Android Release 签名配置读取 `android/keystore.properties`，私有签名文件为 `android/app/release.keystore`；两者必须保持 Git 忽略，禁止提交到开源仓库。
+- Android Release 包必须移除依赖合并带入但当前功能不需要的 `android.permission.CAMERA` 权限；除非后续明确新增直接拍照功能，否则不得恢复该权限。
+- Android 10 及以上读取源照片 GPS 时必须处理照片位置信息权限和原始媒体流，避免系统隐私保护隐藏 EXIF GPS。
