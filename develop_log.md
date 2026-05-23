@@ -791,3 +791,18 @@
 - 已检查合并后的 Debug Manifest，未发现 `android.permission.CAMERA` 权限声明。
 - 已执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`，设备返回 `Success`。
 - 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上 debug 包 `lastUpdateTime` 更新为本轮安装时间，且 `requested permissions` 与 `install permissions` 下不再包含 `android.permission.CAMERA`。
+
+### 更新软件版本号到 1.0.1
+
+- 用户要求将软件版本号提升到 `1.0.1` 并提交。
+- 已将 `app.json`、`package.json` 和 `package-lock.json` 的项目版本更新为 `1.0.1`。
+- 已将 Android `versionName` 更新为 `1.0.1`，并将 Android `versionCode` 从 `1` 提升到 `2`，保证后续 Android 安装升级编号递增。
+- 已同步 `README.md` 和 `AGENTS.md` 中当前软件版本号说明。
+
+### 验证 1.0.1 版本号更新
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误，命令输出显示项目版本为 `exif-helper@1.0.1`。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次普通执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行成功。
+- 提权执行 `gradlew.bat assembleDebug --console=plain` 后 Android debug 构建成功，输出包含 `:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 已通过 Android SDK `aapt` 检查 Debug APK，确认包名为 `com.local.exifhelper.debug`，`versionCode=2`，`versionName=1.0.1`。
