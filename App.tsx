@@ -2,7 +2,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator, type NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { PermissionsAndroid, Platform, SafeAreaView } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppDialog, type AppDialogState, type DialogTone } from './src/components/AppDialog';
 import { PickerChoiceSheet, type PickRole } from './src/components/PickerChoiceSheet';
@@ -177,70 +178,72 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, styles.androidSafeArea]}>
-      <ExpoStatusBar style="dark" backgroundColor="#f6f7f9" translucent />
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#f6f7f9' } }}>
-          <Stack.Screen name="Home">
-            {({ navigation }) => (
-              <MainHomeScreen
-                onOpenClone={() => navigation.navigate('CloneHome')}
-                onOpenMore={() => navigation.navigate('More')}
-              />
-            )}
-          </Stack.Screen>
-          <Stack.Screen name="CloneHome">
-            {({ navigation }) => (
-              <HomeScreen
-                busy={busy}
-                sourceMetadata={sourceMetadata}
-                sourceMessage={sourceMessage}
-                sourcePhoto={sourcePhoto}
-                targetMessage={targetMessage}
-                targetPhotos={targetPhotos}
-                onBack={navigation.goBack}
-                onPickSource={() => openPicker('source')}
-                onPickTargets={() => openPicker('target')}
-                onOpenCloneOptions={() => openCloneOptions(navigation)}
-              />
-            )}
-          </Stack.Screen>
-          <Stack.Screen name="CloneOptions">
-            {({ navigation }) => (
-              <CloneOptionsScreen
-                busy={busy}
-                selectedTagCount={selectedTagCount}
-                selectedTags={selectedTags}
-                sourceMetadata={sourceMetadata}
-                targetCount={targetPhotos.length}
-                onBack={navigation.goBack}
-                onStartClone={() => startClone(navigation)}
-                onToggleTag={toggleTag}
-              />
-            )}
-          </Stack.Screen>
-          <Stack.Screen name="Result">
-            {({ navigation }) => (
-              <ResultScreen
-                results={results}
-                onBack={navigation.goBack}
-                onHome={() => navigation.popToTop()}
-              />
-            )}
-          </Stack.Screen>
-          <Stack.Screen name="More">
-            {({ navigation }) => <MoreScreen onBack={navigation.goBack} />}
-          </Stack.Screen>
-        </Stack.Navigator>
-      </NavigationContainer>
-      <AppDialog dialog={dialog} onClose={() => setDialog(null)} />
-      <PickerChoiceSheet
-        visible={pickerRole != null}
-        role={pickerRole}
-        onClose={closePicker}
-        onPickMode={choosePickerMode}
-      />
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <ExpoStatusBar style="dark" backgroundColor="#f6f7f9" translucent />
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#f6f7f9' } }}>
+            <Stack.Screen name="Home">
+              {({ navigation }) => (
+                <MainHomeScreen
+                  onOpenClone={() => navigation.navigate('CloneHome')}
+                  onOpenMore={() => navigation.navigate('More')}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="CloneHome">
+              {({ navigation }) => (
+                <HomeScreen
+                  busy={busy}
+                  sourceMetadata={sourceMetadata}
+                  sourceMessage={sourceMessage}
+                  sourcePhoto={sourcePhoto}
+                  targetMessage={targetMessage}
+                  targetPhotos={targetPhotos}
+                  onBack={navigation.goBack}
+                  onPickSource={() => openPicker('source')}
+                  onPickTargets={() => openPicker('target')}
+                  onOpenCloneOptions={() => openCloneOptions(navigation)}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="CloneOptions">
+              {({ navigation }) => (
+                <CloneOptionsScreen
+                  busy={busy}
+                  selectedTagCount={selectedTagCount}
+                  selectedTags={selectedTags}
+                  sourceMetadata={sourceMetadata}
+                  targetCount={targetPhotos.length}
+                  onBack={navigation.goBack}
+                  onStartClone={() => startClone(navigation)}
+                  onToggleTag={toggleTag}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="Result">
+              {({ navigation }) => (
+                <ResultScreen
+                  results={results}
+                  onBack={navigation.goBack}
+                  onHome={() => navigation.popToTop()}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="More">
+              {({ navigation }) => <MoreScreen onBack={navigation.goBack} />}
+            </Stack.Screen>
+          </Stack.Navigator>
+        </NavigationContainer>
+        <AppDialog dialog={dialog} onClose={() => setDialog(null)} />
+        <PickerChoiceSheet
+          visible={pickerRole != null}
+          role={pickerRole}
+          onClose={closePicker}
+          onPickMode={choosePickerMode}
+        />
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 

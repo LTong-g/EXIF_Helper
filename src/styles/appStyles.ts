@@ -1,8 +1,7 @@
-import { Platform, StatusBar as NativeStatusBar, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 export const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#f6f7f9' },
-  androidSafeArea: { paddingTop: Platform.OS === 'android' ? NativeStatusBar.currentHeight || 0 : 0 },
   screen: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 14 },
   appName: { color: '#172033', fontSize: 30, fontWeight: '700' },

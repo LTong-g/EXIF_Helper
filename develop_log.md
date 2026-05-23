@@ -506,3 +506,31 @@
 - 已将 Android 发布/分发归档命名规则从 `<软件名>-v<语义版本>-android-<yyyyMMdd>.apk` 进一步明确为 `EXIF_Helper-v<语义版本>-android-<yyyyMMdd>.apk`。
 - 该规则变更只影响后续发布/分发归档文件名说明，不改变当前 Release 构建、签名、权限或安装包内容。
 - 本轮验证方式为检查 `AGENTS.md` 与 `develop_log.md` 的文档 diff，确认改动范围仅为项目规则和开发日志。
+
+## 2026-05-23
+
+### 分析顶部安全边距随机失效原因
+
+- 用户反馈应用有时打开后顶部安全边距失效，文字直接顶到屏幕最顶部，并要求先分析原因。
+- 已检查 `App.tsx`、`src/styles/appStyles.ts`、页面组件、`app.json`、Android `styles.xml` 和 `gradle.properties` 中与安全区、状态栏、edge-to-edge 相关的配置。
+- 当前应用启用了 Android `edgeToEdgeEnabled`，并在 JS 中把 Expo 状态栏设为 `translucent`，窗口内容允许绘制到状态栏区域。
+- 当前根容器使用 React Native 自带 `SafeAreaView`，再通过 `StatusBar.currentHeight || 0` 手动增加 Android 顶部 padding；该值不是实时 window inset，初始化或窗口恢复时可能短暂或偶发为 `0`。
+- 所有页面顶部标题都依赖 `App.tsx` 最外层这一次 padding，页面自己的 `header` 和 `navigationHeader` 没有读取安全区 inset 的兜底，因此根容器 padding 一旦为 `0`，主页标题或返回栏标题就会贴到屏幕顶部。
+- 初步结论：随机异常的主要原因是 Android edge-to-edge/透明状态栏环境下使用 `StatusBar.currentHeight` 作为安全区来源不可靠；应改为 `react-native-safe-area-context` 的 `SafeAreaProvider` 和 `SafeAreaView`/`useSafeAreaInsets` 读取系统实际 inset。
+- 本轮只做原因分析和日志记录，尚未修改应用安全区实现，也未运行构建验证。
+
+### 修复顶部安全边距随机失效
+
+- 已将 `App.tsx` 根容器从 React Native 自带 `SafeAreaView` 切换为 `react-native-safe-area-context` 的 `SafeAreaProvider` 和 `SafeAreaView`。
+- 新根安全区容器使用系统实际 inset 处理 `top`、`left` 和 `right` 边缘，避免继续依赖 Android `StatusBar.currentHeight` 的一次性高度值。
+- 已从 `src/styles/appStyles.ts` 删除 `androidSafeArea` 和 `StatusBar.currentHeight` 引用，保留统一背景色和页面内部既有间距。
+- 本轮未调整主页面、克隆页面、结果页和更多页的业务流程、按钮、选择器、元数据读取或写入逻辑。
+
+### 验证顶部安全边距修复
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 首次执行 Android debug 构建时因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；提权后首次执行因 120 秒超时未返回构建结果。
+- 已确认超时后未生成新的 debug APK，并观察到剩余 Java 进程处于空闲状态，没有持续构建输出。
+- 已使用更长超时重新执行 `gradlew.bat assembleDebug --console=plain`，Android debug 构建成功，输出包含 `:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 构建输出仍包含 Expo `NODE_ENV` 提示和 Gradle 弃用提示，但未导致构建失败。
+- 剩余缺口：尚未在真实设备上反复冷启动、从系统选择器返回和锁屏恢复后做视觉验收；最终仍需在目标 Android 设备确认顶部标题始终避开状态栏和前摄区域。
