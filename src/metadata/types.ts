@@ -23,6 +23,7 @@ export type ApplyCloneRequest = {
   sourceUri: string;
   targetUris: string[];
   tags: string[];
+  pngOutputMode?: 'png' | 'jpeg';
 };
 
 export type CloneResult = {

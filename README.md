@@ -14,8 +14,10 @@ The app is intended for photos whose metadata was lost or changed after editing,
 - Open a clone-options screen before writing.
 - Select individual metadata tags with checkbox-style switches.
 - Write jpg, jpeg, and png target copies.
+- Warn before cloning PNG targets and let the user keep PNG output or save PNG targets as JPEG copies for better metadata visibility.
 - Clone capture time, timezone, GPS, camera, lens, and exposure metadata.
 - Save copies to `Pictures/EXIF助手`.
+- Name exported copies from the target photo name with an `_exifhelper_yyyyMMdd_HHmmss` suffix.
 - Do not overwrite original photos.
 - Re-read metadata after writing and report per-file failures or partially verified tags.
 - Request Android photo location metadata access when reading source-photo GPS.
@@ -66,6 +68,7 @@ On first debug launch, Expo Dev Menu may show a one-time prompt. Tap `Continue` 
 For manual offline app testing, use the release APK.
 
 Debug builds keep the Android `INTERNET` permission so Expo Dev Client can connect to Metro during development.
+Debug and release builds both remove the Android `CAMERA` permission because the app does not take photos directly.
 Debug builds use the `com.local.exifhelper.debug` application ID and the launcher name `EXIF助手 Debug`, so they can be installed beside release builds signed with the release key.
 
 Build a directly installable APK:
@@ -115,7 +118,7 @@ Do not overwrite an existing archived APK with the same name.
 - No account.
 - No upload.
 - No default network permission.
-- No camera permission in release builds.
+- No camera permission.
 - Metadata processing runs locally on the device.
 
 ## Current Limits
@@ -127,4 +130,4 @@ Do not overwrite an existing archived APK with the same name.
 - Some EXIF values may be normalized or refused by AndroidX ExifInterface after writing. The app keeps the saved copy and reports those tags as partially verified instead of treating the whole photo as failed.
 - Android may hide source-photo GPS metadata unless photo location metadata access is granted. Re-select the source photo after granting that permission.
 - No HEIC, RAW, or MakerNote writing.
-- PNG EXIF recognition depends on AndroidX ExifInterface and viewer compatibility; real samples should be used for validation.
+- PNG EXIF recognition depends on AndroidX ExifInterface and viewer compatibility. When PNG targets are selected, the app can instead save those targets as JPEG copies to improve visibility in Android gallery and EXIF tools.

@@ -7,6 +7,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppDialog, type AppDialogState, type DialogTone } from './src/components/AppDialog';
 import { PickerChoiceSheet, type PickRole } from './src/components/PickerChoiceSheet';
+import { PngOutputChoiceDialog } from './src/components/PngOutputChoiceDialog';
 import { defaultSelectedTags } from './src/metadata/exifTags';
 import type { CloneResult, PickedPhoto } from './src/metadata/types';
 import type { RootStackParamList } from './src/navigation/types';
@@ -35,6 +36,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<AppDialogState>(null);
   const [pickerRole, setPickerRole] = useState<PickRole | null>(null);
+  const [showPngOutputChoice, setShowPngOutputChoice] = useState(false);
 
   const selectedTagCount = selectedTags.size;
 
@@ -154,18 +156,40 @@ export default function App() {
     });
   }
 
-  async function startClone(navigation: RootNavigation) {
+  function targetHasPng() {
+    return targetPhotos.some((photo) => {
+      const fileName = photo.fileName?.toLowerCase() || '';
+      const uri = photo.uri.toLowerCase();
+      return photo.mimeType === 'image/png' || fileName.endsWith('.png') || uri.includes('.png');
+    });
+  }
+
+  function startCloneWithPngChoice(navigation: RootNavigation) {
+    if (!sourcePhoto || targetPhotos.length === 0 || selectedTags.size === 0) {
+      showDialog('无法克隆', '请确认已选择源照片、目标照片和至少一个元数据项。', 'warning');
+      return;
+    }
+    if (targetHasPng()) {
+      setShowPngOutputChoice(true);
+      return;
+    }
+    void startClone(navigation, 'png');
+  }
+
+  async function startClone(navigation: RootNavigation, pngOutputMode: 'png' | 'jpeg') {
     if (!sourcePhoto || targetPhotos.length === 0 || selectedTags.size === 0) {
       showDialog('无法克隆', '请确认已选择源照片、目标照片和至少一个元数据项。', 'warning');
       return;
     }
 
     try {
+      setShowPngOutputChoice(false);
       setBusy(true);
       const cloneResults = await applyClone({
         sourceUri: sourcePhoto.uri,
         targetUris: targetPhotos.map((photo) => photo.uri),
         tags: Array.from(selectedTags),
+        pngOutputMode,
       });
       setResults(cloneResults);
       navigation.navigate('Result');
@@ -209,16 +233,24 @@ export default function App() {
             </Stack.Screen>
             <Stack.Screen name="CloneOptions">
               {({ navigation }) => (
-                <CloneOptionsScreen
-                  busy={busy}
-                  selectedTagCount={selectedTagCount}
-                  selectedTags={selectedTags}
-                  sourceMetadata={sourceMetadata}
-                  targetCount={targetPhotos.length}
-                  onBack={navigation.goBack}
-                  onStartClone={() => startClone(navigation)}
-                  onToggleTag={toggleTag}
-                />
+                <>
+                  <CloneOptionsScreen
+                    busy={busy}
+                    selectedTagCount={selectedTagCount}
+                    selectedTags={selectedTags}
+                    sourceMetadata={sourceMetadata}
+                    targetCount={targetPhotos.length}
+                    onBack={navigation.goBack}
+                    onStartClone={() => startCloneWithPngChoice(navigation)}
+                    onToggleTag={toggleTag}
+                  />
+                  <PngOutputChoiceDialog
+                    visible={showPngOutputChoice}
+                    onClose={() => setShowPngOutputChoice(false)}
+                    onChoosePng={() => startClone(navigation, 'png')}
+                    onChooseJpeg={() => startClone(navigation, 'jpeg')}
+                  />
+                </>
               )}
             </Stack.Screen>
             <Stack.Screen name="Result">

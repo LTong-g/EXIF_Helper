@@ -4,7 +4,10 @@ import android.app.Activity
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -24,6 +27,9 @@ import com.facebook.react.bridge.WritableMap
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class ExifCloneModule(
   private val reactContext: ReactApplicationContext
@@ -164,6 +170,14 @@ class ExifCloneModule(
         ?: throw IllegalArgumentException("targetUris is required")
       val requestedTags = request.getArray("tags")
         ?: throw IllegalArgumentException("tags is required")
+      val pngOutputMode = if (request.hasKey("pngOutputMode")) {
+        request.getString("pngOutputMode") ?: PNG_OUTPUT_MODE_PNG
+      } else {
+        PNG_OUTPUT_MODE_PNG
+      }
+      if (pngOutputMode != PNG_OUTPUT_MODE_PNG && pngOutputMode != PNG_OUTPUT_MODE_JPEG) {
+        throw IllegalArgumentException("Unsupported pngOutputMode")
+      }
 
       val tags = requestedTags.toStringList().filter { CLONE_TAGS.contains(it) }
       if (tags.isEmpty()) {
@@ -186,7 +200,7 @@ class ExifCloneModule(
           results.pushMap(failure("", "目标 URI 为空", null))
           continue
         }
-        results.pushMap(processTarget(targetUri, index, sourceAttributes))
+        results.pushMap(processTarget(targetUri, index, sourceAttributes, pngOutputMode))
       }
 
       promise.resolve(results)
@@ -198,19 +212,26 @@ class ExifCloneModule(
   private fun processTarget(
     targetUri: String,
     index: Int,
-    sourceAttributes: List<Pair<String, String>>
+    sourceAttributes: List<Pair<String, String>>,
+    pngOutputMode: String
   ): WritableMap {
     return try {
+      val targetDisplayName = displayNameFromUri(targetUri)
       val targetFile = copyUriToCache(targetUri, "target_$index")
       val extension = detectExtension(targetFile, targetUri)
       if (!SUPPORTED_EXTENSIONS.contains(extension)) {
-        return failure(targetUri, "暂不支持写入 .$extension 文件", displayNameFromUri(targetUri))
+        return failure(targetUri, "暂不支持写入 .$extension 文件", targetDisplayName)
       }
+      val outputExtension = if (extension == "png" && pngOutputMode == PNG_OUTPUT_MODE_JPEG) "jpg" else extension
 
-      val workingFile = File(reactContext.cacheDir, "exif_clone_work_${System.nanoTime()}.$extension")
-      FileInputStream(targetFile).use { input ->
-        FileOutputStream(workingFile).use { output ->
-          input.copyTo(output)
+      val workingFile = File(reactContext.cacheDir, "exif_clone_work_${System.nanoTime()}.$outputExtension")
+      if (extension == "png" && outputExtension == "jpg") {
+        convertPngToJpeg(targetFile, workingFile)
+      } else {
+        FileInputStream(targetFile).use { input ->
+          FileOutputStream(workingFile).use { output ->
+            input.copyTo(output)
+          }
         }
       }
 
@@ -225,10 +246,30 @@ class ExifCloneModule(
         .filter { (tag, value) -> !exifValuesMatch(tag, value, verificationExif.getAttribute(tag)) }
         .map { it.first }
 
-      val outputUri = saveToPictures(workingFile, extension)
-      success(targetUri, outputUri.toString(), displayNameFromUri(targetUri), failedTags)
+      val outputUri = saveToPictures(workingFile, outputExtension, targetDisplayName)
+      success(targetUri, outputUri.toString(), targetDisplayName, failedTags)
     } catch (error: Exception) {
       failure(targetUri, error.message ?: "未知错误", displayNameFromUri(targetUri))
+    }
+  }
+
+  private fun convertPngToJpeg(inputFile: File, outputFile: File) {
+    val sourceBitmap = BitmapFactory.decodeFile(inputFile.absolutePath)
+      ?: throw IllegalArgumentException("无法把 PNG 目标图片另存为 JPEG")
+    val jpegBitmap = Bitmap.createBitmap(sourceBitmap.width, sourceBitmap.height, Bitmap.Config.ARGB_8888)
+    try {
+      Canvas(jpegBitmap).apply {
+        drawColor(Color.WHITE)
+        drawBitmap(sourceBitmap, 0f, 0f, null)
+      }
+      FileOutputStream(outputFile).use { output ->
+        if (!jpegBitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)) {
+          throw IllegalStateException("无法写入 JPEG 输出图片")
+        }
+      }
+    } finally {
+      sourceBitmap.recycle()
+      jpegBitmap.recycle()
     }
   }
 
@@ -320,10 +361,11 @@ class ExifCloneModule(
       }
     }
     val fileData = queryOpenableFile(uri)
+    val mimeType = contentType(uri) ?: detectMimeTypeFromHeader(uri)
     return Arguments.createMap().apply {
       putString("uri", uri.toString())
       putString("fileName", fileData?.first)
-      putString("mimeType", contentType(uri))
+      putString("mimeType", mimeType)
       putInt("width", bounds.outWidth.coerceAtLeast(0))
       putInt("height", bounds.outHeight.coerceAtLeast(0))
     }
@@ -342,13 +384,13 @@ class ExifCloneModule(
     }
   }
 
-  private fun saveToPictures(file: File, extension: String): Uri {
+  private fun saveToPictures(file: File, extension: String, sourceDisplayName: String?): Uri {
     val resolver = reactContext.contentResolver
     val mimeType = when (extension) {
       "png" -> "image/png"
       else -> "image/jpeg"
     }
-    val displayName = "EXIF助手_${System.currentTimeMillis()}.$extension"
+    val displayName = exportDisplayName(sourceDisplayName, extension)
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       val values = ContentValues().apply {
@@ -396,11 +438,6 @@ class ExifCloneModule(
   }
 
   private fun detectExtension(file: File, sourceUri: String): String {
-    val fromUri = guessExtension(sourceUri, contentType(Uri.parse(sourceUri)))
-    if (SUPPORTED_EXTENSIONS.contains(fromUri)) {
-      return fromUri
-    }
-
     FileInputStream(file).use { input ->
       val header = ByteArray(8)
       val read = input.read(header)
@@ -416,7 +453,30 @@ class ExifCloneModule(
         return "jpg"
       }
     }
+    val fromUri = guessExtension(sourceUri, contentType(Uri.parse(sourceUri)))
     return fromUri
+  }
+
+  private fun detectMimeTypeFromHeader(uri: Uri): String? {
+    reactContext.contentResolver.openInputStream(uri).use { input ->
+      if (input == null) {
+        return null
+      }
+      val header = ByteArray(8)
+      val read = input.read(header)
+      if (read >= 8 &&
+        header[0] == 0x89.toByte() &&
+        header[1] == 0x50.toByte() &&
+        header[2] == 0x4E.toByte() &&
+        header[3] == 0x47.toByte()
+      ) {
+        return "image/png"
+      }
+      if (read >= 2 && header[0] == 0xFF.toByte() && header[1] == 0xD8.toByte()) {
+        return "image/jpeg"
+      }
+    }
+    return null
   }
 
   private fun guessExtension(uriString: String, mimeType: String?): String {
@@ -440,8 +500,42 @@ class ExifCloneModule(
   }
 
   private fun displayNameFromUri(uriString: String): String? {
-    val segment = Uri.parse(uriString).lastPathSegment ?: return null
-    return segment.substringAfterLast('/')
+    val uri = Uri.parse(uriString)
+    if (uri.scheme == "content") {
+      queryOpenableFile(uri)?.first?.let { name ->
+        if (name.isNotBlank()) {
+          return name.substringAfterLast('/').substringAfterLast('\\')
+        }
+      }
+    }
+    val segment = uri.lastPathSegment ?: return null
+    return Uri.decode(segment).substringAfterLast('/').substringAfterLast('\\')
+  }
+
+  private fun exportDisplayName(sourceDisplayName: String?, extension: String): String {
+    val timestamp = SimpleDateFormat(EXPORT_TIMESTAMP_PATTERN, Locale.US).format(Date())
+    val baseName = exportBaseName(sourceDisplayName)
+    return "${baseName}_exifhelper_$timestamp.$extension"
+  }
+
+  private fun exportBaseName(sourceDisplayName: String?): String {
+    val sanitized = sanitizeFileName(sourceDisplayName)
+    val dotIndex = sanitized.lastIndexOf('.')
+    val baseName = if (dotIndex > 0) sanitized.substring(0, dotIndex) else sanitized
+    return baseName.ifBlank { EXPORT_FALLBACK_BASENAME }
+  }
+
+  private fun sanitizeFileName(name: String?): String {
+    val raw = name?.trim().orEmpty()
+    val sanitized = raw.map { char ->
+      when {
+        char <= '\u001F' -> '_'
+        char == '/' || char == '\\' || char == ':' || char == '*' || char == '?' -> '_'
+        char == '"' || char == '<' || char == '>' || char == '|' -> '_'
+        else -> char
+      }
+    }.joinToString("").trim().trimEnd('.')
+    return sanitized.ifBlank { EXPORT_FALLBACK_BASENAME }
   }
 
   private fun exifValuesMatch(tag: String, expected: String, actual: String?): Boolean {
@@ -523,6 +617,11 @@ class ExifCloneModule(
     private const val PICK_IMAGES_REQUEST_CODE = 41001
     private const val PICK_MODE_GALLERY = "gallery"
     private const val PICK_MODE_FILES = "files"
+    private const val PNG_OUTPUT_MODE_PNG = "png"
+    private const val PNG_OUTPUT_MODE_JPEG = "jpeg"
+    private const val JPEG_QUALITY = 95
+    private const val EXPORT_TIMESTAMP_PATTERN = "yyyyMMdd_HHmmss"
+    private const val EXPORT_FALLBACK_BASENAME = "image"
     private val SUPPORTED_EXTENSIONS = setOf("jpg", "jpeg", "png")
 
     private val CLONE_TAGS = listOf(

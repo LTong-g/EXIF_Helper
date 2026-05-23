@@ -534,3 +534,260 @@
 - 已使用更长超时重新执行 `gradlew.bat assembleDebug --console=plain`，Android debug 构建成功，输出包含 `:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
 - 构建输出仍包含 Expo `NODE_ENV` 提示和 Gradle 弃用提示，但未导致构建失败。
 - 剩余缺口：尚未在真实设备上反复冷启动、从系统选择器返回和锁屏恢复后做视觉验收；最终仍需在目标 Android 设备确认顶部标题始终避开状态栏和前摄区域。
+
+### 分析不同目标照片元数据克隆不一致
+
+- 用户反馈同一张源照片克隆到不同目标照片时，有的目标照片能完整克隆，有的目标照片只能克隆部分信息。
+- 已检查原生写入链路，当前流程是把目标 URI 复制到缓存文件，使用 AndroidX `ExifInterface.setAttribute()` 写入勾选标签，`saveAttributes()` 后重新读取逐项校验，再把副本保存到 `Pictures/EXIF助手`。
+- 已确认部分成功的直接原因通常不是源照片差异，而是目标照片自身格式、编码、元数据段结构或 AndroidX ExifInterface 对特定标签的保存能力不同；PNG 目标和部分经过编辑、导出、转发的目标图更容易出现标签被规范化、拒写或保存后读不回。
+- 已发现一个实现缺口：目标格式识别此前会在无法从 URI 或 MIME 明确判断时默认当成 JPG，并且会在读文件头前接受该默认值，可能让 HEIC、WebP 或未知内容的目标图进入 JPG 写入流程，造成用户看到不稳定的部分写入结果。
+
+### 修复未知目标格式误判为 JPG
+
+- 已将目标照片写入前的格式识别改为只根据真实文件头确认 JPG/JPEG 或 PNG；无法确认文件头时返回“不支持写入该目标图片格式”，不再默认按 JPG 处理。
+- 已保留源照片读取的宽松策略：源照片复制到缓存时仍可使用 URI、MIME 或 `.bin` 临时扩展名交给 AndroidX ExifInterface 尝试读取，不把源照片限制为 JPG/JPEG/PNG。
+- 已删除不再使用的 `SUPPORTED_EXTENSIONS` 常量，避免后续误读为仍按扩展名判断目标可写格式。
+- 已将结果页部分成功文案从“未通过校验”调整为“未写入或未保留”，并把原生 warning 调整为“目标图片只接受了部分元数据”，让用户理解这是目标图片接受能力差异。
+- 已更新 `README.md` 当前限制，说明目标格式检测需要确认 JPG/JPEG 或 PNG 文件头，未知格式会被拒绝而不是按 JPG 处理。
+
+### 验证目标格式识别修复
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行。
+- 提权执行 `gradlew.bat assembleDebug --console=plain` 后 Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 构建输出仍包含 `TAG_ISO_SPEED_RATINGS` 弃用警告、Expo `NODE_ENV` 提示和 Gradle 弃用提示，但未导致构建失败。
+- 剩余缺口：尚未在真实设备上用用户反馈的同一源照片和多张目标照片重新执行克隆对比；仍需用这些样张确认哪些目标图片是格式不支持，哪些是 AndroidX ExifInterface 对特定标签拒写或保存后不保留。
+
+### 修正成功判定只校验临时文件的问题
+
+- 用户纠正实际现象：结果页没有异常并提示成功，但最终保存图片实际没有完整克隆；因此问题不是结果页已经报告部分成功，而是成功判定不可信。
+- 已确认此前原生流程在 `workingFile` 临时缓存文件上执行写入后校验，然后才通过 MediaStore 保存到 `Pictures/EXIF助手`；如果 MediaStore 最终输出副本在保存或重新读取时丢失部分 EXIF，结果页仍会显示成功。
+- 已将校验点改到最终输出 URI：`saveToPictures()` 返回后，再把输出 URI 复制回缓存并用 AndroidX ExifInterface 重新读取，按最终副本中的标签值计算 `failedTags`。
+- 调整后只有最终输出副本完整保留勾选标签时才显示成功；如果最终副本缺失或不匹配部分标签，结果页会显示“部分”并列出“未写入或未保留”的标签。
+
+### 验证最终输出副本校验修复
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行。
+- 提权执行 `gradlew.bat assembleDebug --console=plain` 后 Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 构建输出仍包含 `TAG_ISO_SPEED_RATINGS` 弃用警告、Expo `NODE_ENV` 提示和 Gradle 弃用提示，但未导致构建失败。
+- 剩余缺口：尚未在真实设备上安装最新 debug 包，并用用户反馈的样张验证结果页是否从误报“成功”改为准确显示“部分”。
+
+### 分析 JPG 源图克隆到 PNG 目标仍不可见
+
+- 用户继续反馈 PNG 目标仍有问题，当前明确样例是 JPG 源照片的元数据克隆不进 PNG 目标照片；尚不确定是否所有 PNG 都受影响。
+- 已检查本地 AndroidX ExifInterface 1.4.1 类结构，确认该版本包含 PNG `eXIf` chunk 读写路径，包括 `savePngAttributes()`、`writePngExifChunk()` 和 `writePngXmpItxtChunk()`。
+- 已识别新的风险边界：应用此前对 PNG 的最终校验仍依赖 AndroidX ExifInterface 自己读回；即使 AndroidX 能读到 PNG `eXIf`，系统相册、MediaStore 或部分 EXIF 查看工具也可能不显示 PNG eXIf，因此用户可见效果仍可能像“没有克隆进去”。
+- 本轮判断：需要增强 PNG 输出兼容性，不能只依赖 PNG eXIf。
+
+### 增强 PNG 元数据兼容写入
+
+- 已在 PNG 目标写入时继续保留 AndroidX ExifInterface 的原有 EXIF 写入路径。
+- 已为 PNG 目标额外生成 XMP 数据，并通过 `ExifInterface.TAG_XMP` 写入 PNG iTXt 元数据块，覆盖拍摄时间、修改时间、厂商、型号、软件、镜头、焦距、曝光、光圈、ISO、曝光补偿、测光、闪光灯、白平衡、GPS 经纬度和海拔等可从源标签映射出的字段。
+- 已在保存输出图片到 MediaStore 时根据源照片 `DateTimeOriginal`、`DateTimeDigitized` 或 `DateTime` 写入 `MediaStore.Images.Media.DATE_TAKEN`，提升系统相册按拍摄时间显示 PNG 输出的机会。
+- 已保留最终输出 URI 的 EXIF 读回校验；PNG 的 XMP 和 MediaStore 写入作为兼容增强，不改变用户勾选标签的主校验逻辑。
+- 已更新 `README.md`，说明 PNG 输出会尽量写入 EXIF、XMP 和 MediaStore 日期字段，同时明确 PNG 元数据识别仍依赖查看器兼容性。
+
+### 验证 PNG 兼容写入增强
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行。
+- 提权执行 `gradlew.bat assembleDebug --console=plain` 后 Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 构建输出仍包含 `TAG_ISO_SPEED_RATINGS` 弃用警告、Expo `NODE_ENV` 提示和 Gradle 弃用提示，但未导致构建失败。
+- 已删除本轮用于查看 AndroidX 类结构的临时解包目录，避免把临时分析文件留在工作区。
+- 剩余缺口：尚未在真实设备上用用户反馈的 JPG 源图和 PNG 目标图验证系统相册、应用读回和外部 EXIF 查看工具分别能看到哪些元数据。
+
+### 修正 PNG 结果误报完全成功
+
+- 用户反馈安装 PNG 兼容增强版后，JPG 源图克隆到 PNG 目标仍显示成功，但实际验收仍认为克隆失败。
+- 已从设备拉取最新输出 PNG 到临时目录检查文件结构；该 PNG 文件包含 1 个 `eXIf` 块和 1 个 `iTXt` 块，且二者位于 `IDAT` 图像数据前，说明应用确实写入了 PNG eXIf/XMP，但用户验收路径仍可能不识别这些 PNG 元数据。
+- 已确认问题核心变为结果语义：PNG 输出即使 AndroidX 可读回，也不能对用户承诺“完全成功”。
+- 已在结果模型中新增 `partial` 标记，使 PNG 输出在有兼容性警告但没有具体 `failedTags` 时也显示“部分”。
+- 已调整结果页统计：顶部“成功”只统计完全成功，“部分”单独统计 PNG 兼容性受限或存在未保留标签的结果。
+- 已将 PNG 输出 warning 设置为“PNG 元数据已写入 eXIf/XMP，但部分相册或工具可能无法识别”，避免继续误导用户认为 PNG 已达到 JPEG 同等可见性。
+- 已删除本轮从设备拉取输出 PNG 的临时检查目录，未保留用户样张副本。
+
+### 验证并安装 PNG 部分结果标记
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行。
+- 提权执行 `gradlew.bat assembleDebug --console=plain` 后 Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 已执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上 debug 包 `versionName=1.0.0`，`lastUpdateTime` 为本轮安装时间。
+- 剩余缺口：PNG 目标仍需要用户用同一 JPG 源图和 PNG 目标图复测；本轮目标是停止误报完全成功，并明确 PNG 元数据可见性受查看器兼容性限制。
+
+### 实现 PNG 原生兼容 EXIF Profile 写入
+
+- 用户明确要求从根本解决 JPG 源图元数据克隆到 PNG 目标的问题，而不是只把结果标成“部分”。
+- 已在 AndroidX 写入 PNG eXIf 和 XMP 后，新增应用自有 PNG 块重写逻辑，直接解析 PNG chunk 并在 `IHDR` 后写入兼容元数据块。
+- 新增写入 `Raw profile type exif` 的 `tEXt` 块，内容为 ImageMagick/ExifTool 常见 raw EXIF profile 文本格式，使用 `Exif\0\0` 前缀加 PNG eXIf 中的 TIFF 数据转十六进制保存。
+- 新增写入常见 PNG 文本字段，包括 `Creation Time`、`Software`、`Make`、`Model`、`LensModel`、GPS 纬度和经度文本字段，用于提高非 EXIF 型 PNG 查看器的基础信息可见性。
+- 新增 PNG 兼容结构校验：最终输出副本必须同时存在标准 `eXIf`、XMP `iTXt` 和 `Raw profile type exif`，且勾选标签经 AndroidX 读回匹配，才显示完全成功；结构缺失时显示“部分”。
+- 已更新 `README.md`，说明 PNG 现在写入标准 eXIf、XMP iTXt、ImageMagick/ExifTool raw EXIF profile 和 MediaStore 日期字段。
+
+### 验证并安装 PNG 原生兼容写入
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行。
+- 提权执行 `gradlew.bat assembleDebug --console=plain` 后 Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 首次执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk` 返回失败但未给出具体安装原因；随后改用 `adb push` 将 APK 推送到设备临时路径。
+- 执行设备端 `pm install` 时设备短暂变为 offline；已重启 ADB server，等待设备重新授权并恢复 online。
+- 设备恢复 online 后，已执行 `adb shell pm install -r /data/local/tmp/exif-helper-debug.apk`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上 debug 包 `versionName=1.0.0`，`lastUpdateTime` 为本轮安装时间。
+- 剩余缺口：需要用户用同一 JPG 源图和 PNG 目标图重新执行克隆，并用实际验收工具确认 `Raw profile type exif` 写入后是否可见。
+
+### 安装最终输出副本校验修复到真机
+
+- 用户反馈已连接真机，并询问如需安装新版则直接安装。
+- 已确认连接设备在线，设备列表中存在一台 `device` 状态的 Android 设备。
+- 已确认本轮 debug APK 输出存在，文件更新时间为本轮最终输出副本校验修复后的构建时间。
+- 已执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上的 debug 包 `versionName=1.0.0`，`lastUpdateTime` 为本轮安装时间。
+- 已通过 `cmd package resolve-activity --brief com.local.exifhelper.debug` 确认 debug 启动入口为 `com.local.exifhelper.debug/com.local.exifhelper.MainActivity`。
+- 剩余缺口：尚未由用户在真机上用反馈问题的源照片和目标照片执行克隆验证。
+
+### 增补 PNG 压缩 Raw Profile 兼容写入
+
+- 用户复测后反馈 JPG 源图克隆到 PNG 目标依旧没有成功。
+- 已确认上一版 PNG 兼容写入只补写未压缩 `tEXt Raw profile type exif`，而部分 PNG 元数据工具和历史 ImageMagick/ExifTool 兼容路径更常见的是压缩 `zTXt` raw profile，并可能识别 `Raw profile type APP1`。
+- 已将 PNG 兼容写入扩展为同时写入 `zTXt` 和 `tEXt` 两种 raw profile，并同时提供 `Raw profile type APP1` 与 `Raw profile type exif` 两个关键字。
+- `APP1` raw profile 使用 `APP1` profile 名称，`exif` raw profile 使用 `exif` profile 名称；二者内容都保留 `Exif\0\0` 前缀加 PNG `eXIf` 中 TIFF 数据的十六进制 profile。
+- 已调整 PNG 兼容结构校验，使最终输出副本存在 `zTXt` 或 `tEXt` raw profile 任一兼容块即可通过 raw profile 结构检查。
+- 已更新 `README.md`，说明 PNG 输出现在写入标准 `eXIf`、XMP `iTXt`、压缩和未压缩 raw EXIF profile，以及 MediaStore 日期字段。
+- 已清理本轮用于分析设备输出 PNG 的临时目录，未在工作区保留用户样张副本。
+
+### 验证并安装 PNG 压缩 Raw Profile 写入
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行。
+- 提权执行 `gradlew.bat assembleDebug --console=plain` 后 Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 构建输出仍包含 `TAG_ISO_SPEED_RATINGS` 弃用警告、Expo `NODE_ENV` 提示和 Gradle 弃用提示，但未导致构建失败。
+- 已执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上 debug 包 `versionName=1.0.0`，`lastUpdateTime` 为本轮安装时间。
+- 已通过 `cmd package resolve-activity --brief com.local.exifhelper.debug` 确认 debug 启动入口为 `com.local.exifhelper.debug/com.local.exifhelper.MainActivity`。
+- 剩余缺口：需要用户用同一 JPG 源图和 PNG 目标图重新执行克隆，并用实际验收工具确认压缩 `zTXt` 与 `APP1` raw profile 加入后是否可见。
+
+### 复查 PNG 输出文件与系统媒体索引差异
+
+- 用户复测后反馈 PNG 目标除时间外没有任何信息成功克隆进去。
+- 已从设备拉取本轮最新 PNG 输出副本到临时目录进行二进制解析；该文件包含标准 `eXIf`、XMP `iTXt`、2 个压缩 `zTXt` raw profile、2 个未压缩 `tEXt` raw profile 和基础 PNG 文本字段。
+- 已使用本机图片元数据解析库读取该 PNG，确认文件内部可读到相机厂商、相机型号、GPS 经纬度、拍摄时间、曝光时间、光圈、ISO、焦距、曝光补偿、测光、闪光灯和白平衡等 EXIF 子 IFD/GPS IFD 字段。
+- 已通过设备 MediaStore 查询确认该 PNG 在系统媒体索引中只有 `datetaken` 可用，`latitude` 和 `longitude` 为空；这解释了系统相册或系统详情页只显示时间、不显示其它克隆信息的现象。
+- 已查阅 Android 官方 MediaStore 文档，确认 Android 10 起图片纬度和经度列已废弃，位置详情不再索引且值始终为空；相机、镜头、曝光等字段也不是系统图片索引列。
+- 当前结论：文件级 PNG 元数据已经写入，用户可见失败来自 Android/相册验收入口不读取 PNG 内部 EXIF/XMP/raw profile；若验收标准要求系统相册详情页像 JPEG 一样展示所有字段，PNG 文件格式和 Android 媒体索引路径无法提供同等能力。
+- 已清理本轮用于分析设备输出 PNG 的临时目录，未在工作区保留用户样张副本。
+
+### 修正 PNG MediaStore 索引复查结论
+
+- 进一步查询设备 MediaStore 后，确认上一条记录中“系统媒体索引中只有 `datetaken` 可用”的表述不完整。
+- 本轮最新 PNG 在设备 MediaStore 中除 `datetaken` 外，还可查询到 `exposure_time=0.01`、`f_number=4.4` 和 `iso=50`。
+- 同一 PNG 在设备 MediaStore 中 `latitude` 和 `longitude` 仍为空；`make`、`model`、`focal_length`、`flash`、`white_balance` 等列在该设备媒体提供器中不可查询或不是有效列。
+- 修正后的结论：文件内部元数据已包含多项克隆信息，系统媒体索引也保留了部分曝光字段，但当前设备相册或详情页仍可能只展示时间；这属于具体相册应用展示策略和系统索引字段范围问题，不等同于 PNG 文件未写入。
+
+### 记录 PNG 排查代码回退状态
+
+- 用户确认已亲自回退本轮 PNG 兼容写入、结果页标记和相关代码改动，准备从干净代码版本重新修改。
+- 已检查当前工作区，确认除 `develop_log.md` 外没有其它源码或 README 改动。
+- 当前保留内容仅为本轮排查过程、验证事实和结论记录；此前日志中提到的 PNG 兼容写入实现、结果页调整和 APK 安装事实属于已发生历史，不代表当前代码仍包含这些实现。
+- 后续重新设计 PNG/JPEG 元数据克隆方案时，应以当前干净源码为准，并参考本日志中的验证结论：PNG 文件内部可写入多种元数据结构，但 Android MediaStore 和部分相册详情页不会按 JPEG 等价展示所有字段。
+
+### 设计 PNG 目标克隆前输出格式确认
+
+- 用户要求在克隆内容页面点击“开始克隆”时，如果目标图片是 PNG，先弹出提示并询问是否另存为 JPEG；弹窗左侧普通按钮继续保存 PNG，右侧蓝色按钮选择 JPEG。
+- 目标效果：用户选择 PNG 目标并点击“开始克隆”后，会看到应用内弹窗说明 PNG 元数据在 Android 相册中的可见性限制；选择“继续保存 PNG”时维持原 PNG 输出路径，选择“另存为 JPEG”时 PNG 目标输出为 JPEG 副本后再写入 EXIF。
+- 实现方案：JS 层根据目标照片 MIME、文件名或 URI 判断目标列表是否包含 PNG；只有包含 PNG 时拦截开始克隆并显示双按钮弹窗；克隆请求新增 `pngOutputMode` 参数传给 Android 原生模块。
+- 实现方案：Android 原生模块在 `pngOutputMode=jpeg` 且目标格式检测为 PNG 时，把目标 PNG 解码后以白底重编码为 JPEG 临时文件，再使用 AndroidX ExifInterface 写入用户勾选的元数据并保存到 `Pictures/EXIF助手`。
+- 风险边界：PNG 另存为 JPEG 会丢失透明通道并进行有损压缩；本轮使用白底合成和 JPEG 质量 95，优先换取 JPEG EXIF 的相册可见性。
+- 本轮不做：不恢复上一轮 PNG raw profile/XMP 兼容写入实验，不改变 JPG/JPEG 目标的输出格式，不覆盖原照片。
+
+### 实现 PNG 目标另存为 JPEG 选择
+
+- 已新增 `PngOutputChoiceDialog` 应用内弹窗组件，复用现有遮罩、图标、标题、正文和按钮风格。
+- 已在克隆内容页面的“开始克隆”入口增加 PNG 目标判断：目标包含 PNG 时显示弹窗，目标不包含 PNG 时直接执行原克隆流程。
+- 已在弹窗中按用户要求设置左侧普通按钮“继续保存 PNG”和右侧蓝色按钮“另存为 JPEG”。
+- 已扩展 JS 到原生的克隆请求类型，新增 `pngOutputMode`，取值为 `png` 或 `jpeg`。
+- 已在 Android 原生模块中读取并校验 `pngOutputMode`；当目标实际检测为 PNG 且用户选择 JPEG 时，先把 PNG 解码并白底合成为 JPEG，再执行原有 EXIF 写入、写后校验和保存流程。
+- 已更新 `README.md`，说明 PNG 目标克隆前会提示用户选择保留 PNG 或另存为 JPEG。
+
+### 验证并安装 PNG 目标另存为 JPEG 选择
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行。
+- 提权执行 `gradlew.bat assembleDebug --console=plain` 后 Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 构建输出仍包含 `TAG_ISO_SPEED_RATINGS` 弃用警告、Expo `NODE_ENV` 提示和 Gradle 弃用提示，但未导致构建失败。
+- 已执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上 debug 包 `versionName=1.0.0`，`lastUpdateTime` 为本轮安装时间。
+- 已通过 `cmd package resolve-activity --brief com.local.exifhelper.debug` 确认 debug 启动入口为 `com.local.exifhelper.debug/com.local.exifhelper.MainActivity`。
+- 剩余缺口：尚未在真机 UI 中手动选择 PNG 目标并分别点击“继续保存 PNG”和“另存为 JPEG”验证结果文件扩展名、相册显示和 EXIF 可见性。
+
+### 增强 PNG 目标格式识别可靠性
+
+- 已补充原生照片信息读取：当系统内容提供器未返回 MIME 时，根据图片文件头识别 PNG 或 JPEG，并把识别结果返回给 JS 层用于克隆前弹窗判断。
+- 已调整目标格式检测顺序，写入前优先读取目标文件头确认 PNG 或 JPEG，再回退到 URI/MIME 推断，避免部分 `content://` PNG 因 URI 无扩展名而被提前当作 JPG。
+- 已重新执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已重新执行 `git diff --check`，未报告空白错误。
+- 首次普通执行 `gradlew.bat assembleDebug --console=plain` 仍因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行成功。
+- 直接执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk` 返回失败但未给出具体安装原因；随后改用 `adb push` 将 APK 推送到设备临时路径，并执行设备端 `pm install -r`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上 debug 包 `versionName=1.0.0`，`lastUpdateTime` 为本轮最终安装时间。
+- 剩余缺口：尚未在真机 UI 中用系统选择器返回的真实 PNG 目标验证弹窗触发和 JPEG 输出结果。
+
+### 修改导出副本命名规则
+
+- 用户要求导出时不再完全重命名，而是在目标原名后追加 `_exifhelper_<时间戳>` 后缀，且时间戳应使用自然可读格式。
+- 已将 Android 原生保存逻辑从 `EXIF助手_<毫秒时间戳>.<扩展名>` 改为 `<目标原名去扩展名>_exifhelper_yyyy-MM-dd_HH-mm-ss.<实际输出扩展名>`。
+- 当 PNG 目标选择“另存为 JPEG”时，输出文件名保留 PNG 目标原始基名，但扩展名使用实际 JPEG 输出扩展名 `.jpg`。
+- 已在文件名生成前清理路径分隔符、控制字符和 Windows/Android 常见非法文件名字符，避免目标原名导致保存失败。
+- 已改进目标显示名来源：优先从 `content://` 的 `OpenableColumns.DISPLAY_NAME` 获取原文件名，缺失时再回退到 URI 最后路径段。
+- 已更新 `README.md`，说明导出副本命名使用目标原名加 `_exifhelper_yyyy-MM-dd_HH-mm-ss` 后缀。
+
+### 验证并安装导出命名规则
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次普通执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行成功。
+- 提权执行 `gradlew.bat assembleDebug --console=plain` 后 Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 构建输出仍包含 `TAG_ISO_SPEED_RATINGS` 弃用警告、Expo `NODE_ENV` 提示和 Gradle 弃用提示，但未导致构建失败。
+- 已执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上 debug 包 `versionName=1.0.0`，`lastUpdateTime` 为本轮安装时间。
+- 剩余缺口：尚未在真机 UI 中执行一次克隆并查看 `Pictures/EXIF助手` 下实际输出文件名。
+
+### 修正导出时间戳格式
+
+- 用户纠正导出文件名中的时间戳格式：年月日之间应连起来，时分秒之间也应连起来。
+- 已将导出命名后缀从 `_exifhelper_yyyy-MM-dd_HH-mm-ss` 调整为 `_exifhelper_yyyyMMdd_HHmmss`。
+- 已同步 `README.md` 中的导出命名说明。
+
+### 验证并安装导出时间戳格式修正
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次普通执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行成功。
+- 提权执行 `gradlew.bat assembleDebug --console=plain` 后 Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 已执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上 debug 包 `versionName=1.0.0`，`lastUpdateTime` 为本轮安装时间。
+- 剩余缺口：尚未在真机 UI 中执行一次克隆并查看实际导出文件名是否符合 `_exifhelper_yyyyMMdd_HHmmss`。
+
+### 移除 Debug 包相机权限
+
+- 用户询问为什么软件现在需要照相机权限。
+- 已检查当前 Manifest 与合并 Manifest，确认项目主 Manifest 没有主动声明 `android.permission.CAMERA`；该权限由图片选择相关依赖在 Manifest 合并时带入。
+- 已确认此前只在 Release overlay 中移除 `CAMERA` 权限，因此 Release 包不含相机权限，但 Debug 包仍会因依赖合并显示相机权限。
+- 当前功能不提供直接拍照入口，不需要相机权限；已在主 Manifest 增加 `android.permission.CAMERA` 的 `tools:node="remove"`，使 Debug 和 Release 构建都移除该权限。
+- 已更新 `README.md`，说明 Debug 和 Release 都移除相机权限。
+
+### 验证 Debug 包相机权限移除
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次普通执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败；按授权规则提权后重新执行成功。
+- 提权执行 `gradlew.bat assembleDebug --console=plain` 后 Android debug 构建成功，输出包含 `:app:processDebugManifest`、`:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 已检查合并后的 Debug Manifest，未发现 `android.permission.CAMERA` 权限声明。
+- 已执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上 debug 包 `lastUpdateTime` 更新为本轮安装时间，且 `requested permissions` 与 `install permissions` 下不再包含 `android.permission.CAMERA`。
