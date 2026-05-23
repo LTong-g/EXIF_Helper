@@ -925,3 +925,23 @@
 - 已计算 Release 输出和归档 APK 的 SHA-256，二者均为 `607FA6CC29346A7915015E6DDF480F016BC886376077AACCD271E31C62AE9728`。
 - 已确认 `dist/` 被 Git 忽略，归档产物不会进入开源仓库追踪。
 - 本轮未安装 debug 包；本轮目标是发布准备和 Release APK 归档。
+
+### 安装 1.1.0 Release APK 到真机
+
+- 用户要求忽略截图内容，将新的 release 安装到真机。
+- 已确认连接设备 `GMG0220C08003334` 处于 `device` 状态。
+- 已确认归档 APK `dist/EXIF_Helper-v1.1.0-android-20260523.apk` 存在，文件大小为 62513302 字节。
+- 已执行 `adb install -r dist/EXIF_Helper-v1.1.0-android-20260523.apk`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper` 确认设备上的 release 包 `versionCode=3`、`versionName=1.1.0`，`lastUpdateTime` 为本轮安装时间。
+- 已确认 release 启动入口为 `com.local.exifhelper/.MainActivity`。
+- 权限复核中未发现 `android.permission.CAMERA`；`android.permission.INTERNET` 已授予，`android.permission.REQUEST_INSTALL_PACKAGES` 当前未授权，符合安装更新时再由系统要求用户授权的预期。
+
+### 构建并安装 1.1.0 Debug 包到真机
+
+- 用户明确要求把新的 debug 也安装到手机。
+- 已执行 `gradlew.bat assembleDebug --console=plain`，Android debug 构建成功，输出包含 `:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 已确认连接设备 `GMG0220C08003334` 处于 `device` 状态。
+- 已执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上的 debug 包 `versionCode=3`、`versionName=1.1.0`，`lastUpdateTime` 为本轮安装时间。
+- 已确认 debug 启动入口为 `com.local.exifhelper.debug/com.local.exifhelper.MainActivity`。
+- 权限复核中未发现 `android.permission.CAMERA`；`android.permission.INTERNET` 已授予，`android.permission.REQUEST_INSTALL_PACKAGES` 当前未授权。
