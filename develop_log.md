@@ -904,3 +904,24 @@
 - 已将更多主页面从 `ScrollView` 改为固定 `View` 布局，页面内容只包含顶部应用信息大卡牌和入口列表，不再提供页面滚动。
 - 软件介绍、使用帮助、隐私政策和版本记录属于内容较长的独立说明页面，仍保留滚动阅读。
 - 本轮只调整更多页 JS 展示结构和样式，不涉及原生代码、权限或 Manifest，因此不重装 debug 包。
+
+### 更新软件版本号到 1.1.0
+
+- 用户要求做 `1.1.0` 发布准备。
+- 已将 `package.json`、`package-lock.json` 和 `app.json` 的软件版本更新为 `1.1.0`。
+- 已将 Android `versionName` 更新为 `1.1.0`，并将 `versionCode` 从 `2` 提升到 `3`。
+- 已将更多页版本读取失败兜底值更新为 `1.1.0`。
+- 已将版本记录页顶部 `Unreleased` 节点定版为 `v1.1.0`，发布日期为 `2026-05-23`。
+- 已同步 `README.md` 和 `AGENTS.md` 中当前软件版本号为 `1.1.0`。
+
+### 验证并归档 1.1.0 Release APK
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误，命令输出显示项目版本为 `exif-helper@1.1.0`。
+- 已执行 `gradlew.bat assembleRelease --console=plain`，Android release 构建成功，输出包含 JS bundle 生成、`:app:packageRelease`、`:app:assembleRelease` 和 `BUILD SUCCESSFUL`。
+- 已通过 Android SDK `aapt` 检查 Release APK，确认包名为 `com.local.exifhelper`，`versionCode=3`，`versionName=1.1.0`，`minSdk=24`，`targetSdk=35`。
+- 已检查 Release APK 权限，包含用户主动检查更新所需的 `android.permission.INTERNET` 和安装更新所需的 `android.permission.REQUEST_INSTALL_PACKAGES`，未发现 `android.permission.CAMERA`。
+- 已按发布归档规则确认 `dist/EXIF_Helper-v1.1.0-android-20260523.apk` 不存在，避免覆盖已归档产物。
+- 已从 Release APK 输出复制归档到 `dist/EXIF_Helper-v1.1.0-android-20260523.apk`。
+- 已计算 Release 输出和归档 APK 的 SHA-256，二者均为 `607FA6CC29346A7915015E6DDF480F016BC886376077AACCD271E31C62AE9728`。
+- 已确认 `dist/` 被 Git 忽略，归档产物不会进入开源仓库追踪。
+- 本轮未安装 debug 包；本轮目标是发布准备和 Release APK 归档。

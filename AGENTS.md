@@ -214,7 +214,7 @@ AI 给方案时使用以下顺序：
 - release 构建必须使用本机独立 release keystore；不得使用 debug keystore 签 release 包；真实 keystore、密码、alias 和 key password 不得入库或写入日志。
 - Android 安装包只有准备发布或分发时才需要复制归档并重命名；普通构建不要求每次复制重命名。
 - Android 安装包发布/分发归档命名格式为 `EXIF_Helper-v<语义版本>-android-<yyyyMMdd>.apk`，归档位置为 `dist/`，归档来源必须是 Release APK。
-- Android 安装包发布/分发归档中的 `<语义版本>` 以软件版本号为准；当前软件版本号为 `1.0.1`，对应 `app.json`、`package.json` 和 Android `versionName`。
+- Android 安装包发布/分发归档中的 `<语义版本>` 以软件版本号为准；当前软件版本号为 `1.1.0`，对应 `app.json`、`package.json` 和 Android `versionName`。
 - 已经归档的版本视为已发布产物，不得覆盖同名归档；除非先询问用户并得到明确同意，否则禁止覆盖任何已归档版本。
 - Android Release APK 使用本机私有 release 签名；`android/app/debug.keystore` 仅用于 Debug，Release 构建不得使用 `signingConfigs.debug`。
 - Android Release 签名配置读取 `android/keystore.properties`，私有签名文件为 `android/app/release.keystore`；两者必须保持 Git 忽略，禁止提交到开源仓库。

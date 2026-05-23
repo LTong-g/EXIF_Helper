@@ -17,7 +17,7 @@ export function VersionHistoryScreen({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <VersionNode number="Unreleased" title="更多页与更新入口" date="未发布">
+        <VersionNode number="v1.1.0" title="更多页与更新入口" date="2026-05-23">
           <VersionGroup title="新增">
             <Bullet text="新增更多页体系，集中查看软件介绍、使用帮助、隐私政策、版本记录和检查更新。" />
             <Bullet text="新增检查更新流程，可主动检查 GitHub 发布版本，并在有安装包时下载、安装或删除。" />
