@@ -11,8 +11,10 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.Settings
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import androidx.core.content.FileProvider
 import androidx.exifinterface.media.ExifInterface
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Arguments
@@ -27,6 +29,8 @@ import com.facebook.react.bridge.WritableMap
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -206,6 +210,106 @@ class ExifCloneModule(
       promise.resolve(results)
     } catch (error: Exception) {
       promise.reject("EXIF_CLONE_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
+  fun getAppInfo(promise: Promise) {
+    try {
+      val packageInfo = currentPackageInfo()
+      promise.resolve(Arguments.createMap().apply {
+        putString("packageName", packageInfo.packageName)
+        putString("versionName", packageInfo.versionName ?: "")
+        putDouble("versionCode", packageVersionCode(packageInfo).toDouble())
+      })
+    } catch (error: Exception) {
+      promise.reject("APP_INFO_FAILED", error.message ?: "无法读取应用版本信息", error)
+    }
+  }
+
+  @ReactMethod
+  fun getDownloadedUpdate(promise: Promise) {
+    try {
+      val update = validDownloadedUpdateOrNull()
+      promise.resolve(update?.toWritableMap())
+    } catch (error: Exception) {
+      promise.reject("LOCAL_UPDATE_FAILED", error.message ?: "无法读取本地更新包", error)
+    }
+  }
+
+  @ReactMethod
+  fun downloadUpdate(request: ReadableMap, promise: Promise) {
+    try {
+      val url = request.getString("url")
+        ?: throw IllegalArgumentException("url is required")
+      val version = request.getString("version")
+        ?: throw IllegalArgumentException("version is required")
+      val requestedFileName = request.getString("fileName")
+        ?: "EXIF_Helper-v$version.apk"
+      val fileName = updateApkFileName(requestedFileName, version)
+      val outputFile = File(updateDirectory(), fileName)
+      val tempFile = File(updateDirectory(), "$fileName.download")
+
+      deleteDownloadedUpdateFiles()
+      downloadFile(url, tempFile)
+      if (!tempFile.renameTo(outputFile)) {
+        tempFile.copyTo(outputFile, overwrite = true)
+        tempFile.delete()
+      }
+
+      val update = validateDownloadedUpdate(outputFile)
+      promise.resolve(update.toWritableMap())
+    } catch (error: Exception) {
+      deleteDownloadedUpdateFiles()
+      promise.reject("UPDATE_DOWNLOAD_FAILED", error.message ?: "无法下载更新安装包", error)
+    }
+  }
+
+  @ReactMethod
+  fun deleteDownloadedUpdate(promise: Promise) {
+    try {
+      val deleted = deleteDownloadedUpdateFiles()
+      promise.resolve(deleted)
+    } catch (error: Exception) {
+      promise.reject("UPDATE_DELETE_FAILED", error.message ?: "删除失败", error)
+    }
+  }
+
+  @ReactMethod
+  fun installDownloadedUpdate(promise: Promise) {
+    try {
+      val update = validDownloadedUpdateOrNull()
+        ?: throw IllegalStateException("没有可安装的更新包")
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+        !reactContext.packageManager.canRequestPackageInstalls()
+      ) {
+        val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+          data = Uri.parse("package:${reactContext.packageName}")
+          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        reactContext.startActivity(settingsIntent)
+        promise.resolve(Arguments.createMap().apply {
+          putString("status", "needsPermission")
+        })
+        return
+      }
+
+      val apkUri = FileProvider.getUriForFile(
+        reactContext,
+        "${reactContext.packageName}.fileprovider",
+        update.file
+      )
+      val installIntent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(apkUri, APK_MIME_TYPE)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      reactContext.startActivity(installIntent)
+      promise.resolve(Arguments.createMap().apply {
+        putString("status", "opened")
+      })
+    } catch (error: Exception) {
+      promise.reject("UPDATE_INSTALL_FAILED", error.message ?: "无法打开系统安装器", error)
     }
   }
 
@@ -605,6 +709,163 @@ class ExifCloneModule(
     }
   }
 
+  private fun currentPackageInfo() =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      reactContext.packageManager.getPackageInfo(
+        reactContext.packageName,
+        PackageManager.PackageInfoFlags.of(0)
+      )
+    } else {
+      @Suppress("DEPRECATION")
+      reactContext.packageManager.getPackageInfo(reactContext.packageName, 0)
+    }
+
+  private fun archivePackageInfo(file: File) =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      reactContext.packageManager.getPackageArchiveInfo(
+        file.absolutePath,
+        PackageManager.PackageInfoFlags.of(0)
+      )
+    } else {
+      @Suppress("DEPRECATION")
+      reactContext.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+    }
+
+  private fun packageVersionCode(packageInfo: android.content.pm.PackageInfo): Long {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      packageInfo.longVersionCode
+    } else {
+      @Suppress("DEPRECATION")
+      packageInfo.versionCode.toLong()
+    }
+  }
+
+  private fun updateDirectory(): File {
+    val directory = File(reactContext.filesDir, UPDATE_DIRECTORY_NAME)
+    if (!directory.exists() && !directory.mkdirs()) {
+      throw IllegalStateException("无法创建更新包目录")
+    }
+    return directory
+  }
+
+  private fun validDownloadedUpdateOrNull(): DownloadedUpdate? {
+    val file = updateDirectory()
+      .listFiles()
+      ?.filter { it.isFile && it.extension.lowercase(Locale.US) == "apk" }
+      ?.maxByOrNull { it.lastModified() }
+      ?: return null
+    return try {
+      validateDownloadedUpdate(file)
+    } catch (_: Exception) {
+      file.delete()
+      null
+    }
+  }
+
+  private fun validateDownloadedUpdate(file: File): DownloadedUpdate {
+    val archiveInfo = archivePackageInfo(file)
+      ?: throw IllegalArgumentException("安装包无效")
+    val currentInfo = currentPackageInfo()
+    val archiveVersion = archiveInfo.versionName
+      ?: throw IllegalArgumentException("安装包缺少版本号")
+    val currentVersion = currentInfo.versionName ?: "0.0.0"
+
+    if (archiveInfo.packageName != reactContext.packageName) {
+      throw IllegalArgumentException("安装包不是当前应用")
+    }
+    if (compareSemanticVersions(archiveVersion, currentVersion) <= 0) {
+      throw IllegalArgumentException("安装包版本不高于当前版本")
+    }
+
+    return DownloadedUpdate(
+      file = file,
+      packageName = archiveInfo.packageName,
+      versionName = archiveVersion,
+      versionCode = packageVersionCode(archiveInfo),
+    )
+  }
+
+  private fun downloadFile(urlString: String, outputFile: File) {
+    val connection = URL(urlString).openConnection() as HttpURLConnection
+    connection.instanceFollowRedirects = true
+    connection.connectTimeout = UPDATE_CONNECT_TIMEOUT_MS
+    connection.readTimeout = UPDATE_READ_TIMEOUT_MS
+    connection.setRequestProperty("Accept", APK_MIME_TYPE)
+    try {
+      val responseCode = connection.responseCode
+      if (responseCode !in 200..299) {
+        throw IllegalStateException("下载接口返回 $responseCode")
+      }
+      connection.inputStream.use { input ->
+        FileOutputStream(outputFile).use { output ->
+          input.copyTo(output)
+        }
+      }
+      if (!outputFile.exists() || outputFile.length() <= 0L) {
+        throw IllegalStateException("安装包内容为空")
+      }
+    } finally {
+      connection.disconnect()
+    }
+  }
+
+  private fun deleteDownloadedUpdateFiles(): Boolean {
+    val directory = updateDirectory()
+    var deletedAny = false
+    directory.listFiles()?.forEach { file ->
+      if (file.isFile && (file.extension.lowercase(Locale.US) == "apk" || file.name.endsWith(".download"))) {
+        deletedAny = file.delete() || deletedAny
+      }
+    }
+    return deletedAny
+  }
+
+  private fun updateApkFileName(requestedName: String, version: String): String {
+    val sanitized = sanitizeFileName(requestedName)
+    val withExtension = if (sanitized.lowercase(Locale.US).endsWith(".apk")) {
+      sanitized
+    } else {
+      "$sanitized.apk"
+    }
+    return withExtension.ifBlank { "EXIF_Helper-v$version.apk" }
+  }
+
+  private fun compareSemanticVersions(left: String, right: String): Int {
+    val leftParts = semanticVersionParts(left)
+    val rightParts = semanticVersionParts(right)
+    val maxLength = maxOf(leftParts.size, rightParts.size)
+    for (index in 0 until maxLength) {
+      val leftValue = leftParts.getOrElse(index) { 0 }
+      val rightValue = rightParts.getOrElse(index) { 0 }
+      if (leftValue > rightValue) {
+        return 1
+      }
+      if (leftValue < rightValue) {
+        return -1
+      }
+    }
+    return 0
+  }
+
+  private fun semanticVersionParts(version: String): List<Int> {
+    return version.trim()
+      .removePrefix("v")
+      .removePrefix("V")
+      .split(".", "+", "-")
+      .mapNotNull { it.toIntOrNull() }
+  }
+
+  private fun DownloadedUpdate.toWritableMap(): WritableMap {
+    return Arguments.createMap().apply {
+      putString("fileName", file.name)
+      putString("filePath", file.absolutePath)
+      putString("packageName", packageName)
+      putString("versionName", versionName)
+      putDouble("versionCode", versionCode.toDouble())
+      putDouble("size", file.length().toDouble())
+    }
+  }
+
   private fun ReadableArray.toStringList(): List<String> {
     val result = mutableListOf<String>()
     for (index in 0 until size()) {
@@ -620,6 +881,10 @@ class ExifCloneModule(
     private const val PNG_OUTPUT_MODE_PNG = "png"
     private const val PNG_OUTPUT_MODE_JPEG = "jpeg"
     private const val JPEG_QUALITY = 95
+    private const val UPDATE_DIRECTORY_NAME = "updates"
+    private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
+    private const val UPDATE_CONNECT_TIMEOUT_MS = 15000
+    private const val UPDATE_READ_TIMEOUT_MS = 30000
     private const val EXPORT_TIMESTAMP_PATTERN = "yyyyMMdd_HHmmss"
     private const val EXPORT_FALLBACK_BASENAME = "image"
     private val SUPPORTED_EXTENSIONS = setOf("jpg", "jpeg", "png")
@@ -669,4 +934,11 @@ class ExifCloneModule(
       ExifInterface.TAG_BRIGHTNESS_VALUE,
     )
   }
+
+  private data class DownloadedUpdate(
+    val file: File,
+    val packageName: String,
+    val versionName: String,
+    val versionCode: Long,
+  )
 }

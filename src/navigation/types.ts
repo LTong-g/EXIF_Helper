@@ -4,4 +4,8 @@ export type RootStackParamList = {
   CloneOptions: undefined;
   Result: undefined;
   More: undefined;
+  SoftwareIntro: undefined;
+  UsageHelp: undefined;
+  PrivacyPolicy: undefined;
+  VersionHistory: undefined;
 };

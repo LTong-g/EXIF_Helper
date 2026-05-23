@@ -209,6 +209,7 @@ AI 给方案时使用以下顺序：
 - 主页面底部提供“设置克隆”按钮；点击后进入新的克隆内容页面进行勾选和执行。
 - 主页面选择照片时提供应用内入口选择，可走系统相册/图库界面或 SAF 文件选择器；系统选择器内部不做自定义按钮。
 - 需要实时查看 UI 或 JS 改动时使用 debug 包连接 Metro，不安装 release 包；release 包只用于最终离线验收。
+- 不是每次更改后都重装 debug 包；只有需要真机验证当前 APK 内容、原生代码变更、权限或 Manifest 变更，或用户明确要求安装时才重装 debug 包。
 - debug 包使用 `com.local.exifhelper.debug` 和“EXIF助手 Debug”名称，release 包使用 `com.local.exifhelper` 和“EXIF助手”名称，以便同一设备同时安装调试包和离线验收包。
 - release 构建必须使用本机独立 release keystore；不得使用 debug keystore 签 release 包；真实 keystore、密码、alias 和 key password 不得入库或写入日志。
 - Android 安装包只有准备发布或分发时才需要复制归档并重命名；普通构建不要求每次复制重命名。
@@ -219,3 +220,8 @@ AI 给方案时使用以下顺序：
 - Android Release 签名配置读取 `android/keystore.properties`，私有签名文件为 `android/app/release.keystore`；两者必须保持 Git 忽略，禁止提交到开源仓库。
 - Android Release 包必须移除依赖合并带入但当前功能不需要的 `android.permission.CAMERA` 权限；除非后续明确新增直接拍照功能，否则不得恢复该权限。
 - Android 10 及以上读取源照片 GPS 时必须处理照片位置信息权限和原始媒体流，避免系统隐私保护隐藏 EXIF GPS。
+- 更多页必须作为应用信息、软件介绍、使用帮助、隐私政策、版本记录、检查更新和项目主页入口的集中页面；软件介绍、使用帮助、隐私政策和版本记录分别作为独立导航页面实现。
+- 版本记录页中尚未发布的顶部节点在发布前版本号写为 `Unreleased`，不能提前写成下一个具体版本号；发布定版时再改为实际版本号和发布日期。
+- 基础照片元数据克隆流程不默认联网；检查更新只有在用户主动点击更多页入口时才访问 GitHub Releases。
+- Android Release 包允许保留 `android.permission.INTERNET` 用于用户主动检查更新，但不得因此加入账号、云同步、广告、统计或后台上传。
+- 检查更新下载的 APK 必须校验为当前应用且语义版本号高于当前版本；无效、本应用不匹配或版本不高的本地安装包必须清理或忽略。

@@ -16,7 +16,11 @@ import { CloneOptionsScreen } from './src/screens/CloneOptionsScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { MainHomeScreen } from './src/screens/MainHomeScreen';
 import { MoreScreen } from './src/screens/MoreScreen';
+import { PrivacyPolicyScreen } from './src/screens/PrivacyPolicyScreen';
 import { ResultScreen } from './src/screens/ResultScreen';
+import { SoftwareIntroScreen } from './src/screens/SoftwareIntroScreen';
+import { UsageHelpScreen } from './src/screens/UsageHelpScreen';
+import { VersionHistoryScreen } from './src/screens/VersionHistoryScreen';
 import { styles } from './src/styles/appStyles';
 import { toUserFacingMessage } from './src/utils/errors';
 import { hasMetadataValue } from './src/utils/metadata';
@@ -263,7 +267,27 @@ export default function App() {
               )}
             </Stack.Screen>
             <Stack.Screen name="More">
-              {({ navigation }) => <MoreScreen onBack={navigation.goBack} />}
+              {({ navigation }) => (
+                <MoreScreen
+                  onBack={navigation.goBack}
+                  onOpenPrivacyPolicy={() => navigation.navigate('PrivacyPolicy')}
+                  onOpenSoftwareIntro={() => navigation.navigate('SoftwareIntro')}
+                  onOpenUsageHelp={() => navigation.navigate('UsageHelp')}
+                  onOpenVersionHistory={() => navigation.navigate('VersionHistory')}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="SoftwareIntro">
+              {({ navigation }) => <SoftwareIntroScreen onBack={navigation.goBack} />}
+            </Stack.Screen>
+            <Stack.Screen name="UsageHelp">
+              {({ navigation }) => <UsageHelpScreen onBack={navigation.goBack} />}
+            </Stack.Screen>
+            <Stack.Screen name="PrivacyPolicy">
+              {({ navigation }) => <PrivacyPolicyScreen onBack={navigation.goBack} />}
+            </Stack.Screen>
+            <Stack.Screen name="VersionHistory">
+              {({ navigation }) => <VersionHistoryScreen onBack={navigation.goBack} />}
             </Stack.Screen>
           </Stack.Navigator>
         </NavigationContainer>

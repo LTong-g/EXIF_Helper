@@ -10,6 +10,7 @@ The app is intended for photos whose metadata was lost or changed after editing,
 - Pick any number of target photos.
 - Open metadata cloning from the app home screen instead of placing the clone workflow directly on launch.
 - Provide a More entry for version, privacy, and permission information.
+- Provide More pages for software introduction, usage help, privacy policy, version history, project homepage, and update checks.
 - Pick photos from the system gallery/photos UI or the document/file picker.
 - Open a clone-options screen before writing.
 - Select individual metadata tags with checkbox-style switches.
@@ -21,6 +22,7 @@ The app is intended for photos whose metadata was lost or changed after editing,
 - Do not overwrite original photos.
 - Re-read metadata after writing and report per-file failures or partially verified tags.
 - Request Android photo location metadata access when reading source-photo GPS.
+- Check GitHub releases only when the user taps the update entry, then download, install, or delete a newer APK when one is available.
 
 ## Stack
 
@@ -101,7 +103,8 @@ Install to a connected emulator or device:
 adb install -r .\android\app\build\outputs\apk\release\app-release.apk
 ```
 
-Release builds remove the Android `INTERNET` permission.
+Release builds keep the Android `INTERNET` permission only for user-initiated update checks against GitHub releases. The app still does not provide account login, cloud sync, ads, analytics, or background uploads.
+Release builds declare `REQUEST_INSTALL_PACKAGES` so the user can install a downloaded release APK after explicitly choosing to update. Android may still require the user to allow installing unknown apps for this app in system settings.
 
 When preparing a release or distribution package, copy only the Release APK to `dist/` and rename it with this format:
 
@@ -117,7 +120,7 @@ Do not overwrite an existing archived APK with the same name.
 
 - No account.
 - No upload.
-- No default network permission.
+- No default network activity; update checks only run after the user taps the update entry.
 - No camera permission.
 - Metadata processing runs locally on the device.
 
@@ -127,6 +130,9 @@ Do not overwrite an existing archived APK with the same name.
 - No iOS support.
 - No original-file overwrite by default.
 - The document/file picker cannot be customized with app-defined buttons; EXIF Helper provides picker choices before opening the system UI.
+- The More page opens separate app pages for software introduction, usage help, privacy policy, and version history.
+- Update checks use GitHub releases and require network access only when the user taps `检查更新`.
+- Downloaded update APKs are kept in the app-specific update directory, validated against the current application package and semantic version, and can be deleted from the More page.
 - Some EXIF values may be normalized or refused by AndroidX ExifInterface after writing. The app keeps the saved copy and reports those tags as partially verified instead of treating the whole photo as failed.
 - Android may hide source-photo GPS metadata unless photo location metadata access is granted. Re-select the source photo after granting that permission.
 - No HEIC, RAW, or MakerNote writing.
