@@ -22,7 +22,11 @@ export function MainHomeScreen({
       <ScrollView contentContainerStyle={styles.homeContent}>
         <Pressable style={({ pressed }) => [styles.featureCard, pressed ? styles.pressed : null]} onPress={onOpenEdit}>
           <View style={styles.featureIconEdit}>
-            <Text style={styles.featureIconText}>编</Text>
+            <View style={styles.editIconPencil}>
+              <View style={styles.editIconPencilEnd} />
+              <View style={styles.editIconPencilBody} />
+              <View style={styles.editIconPencilTip} />
+            </View>
           </View>
           <View style={styles.featureTextBlock}>
             <Text style={styles.featureTitle}>元数据编辑</Text>

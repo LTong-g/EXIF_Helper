@@ -982,3 +982,10 @@
 - Kotlin 类型声明小修后已再次执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
 - Kotlin 类型声明小修后已再次提权执行 `gradlew.bat assembleDebug --console=plain`，Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
 - 已按项目偏好将本轮修改文件统一为 CRLF 行尾，并再次执行 `git diff --check` 和 `npm run typecheck`，均未报告错误。
+
+### 调整元数据编辑入口图标
+
+- 用户要求首页“元数据编辑”入口不显示汉字图标，应像“元数据克隆”和“更多”入口一样使用图形图标。
+- 已将“元数据编辑”入口左侧图标调整为由笔尾、笔身和笔尖组成的铅笔图形。
+- 铅笔图标最终使用 `110deg` 旋转角度，呈斜向且笔尖朝左下，避免 45° 倍数角度带来的死板观感。
+- 本轮只调整首页入口视觉样式，不改变导航、元数据编辑逻辑、原生写入逻辑或 PNG 处理流程。
