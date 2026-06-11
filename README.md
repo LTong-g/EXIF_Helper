@@ -115,7 +115,7 @@ When preparing a release or distribution package, copy only the Release APK to `
 EXIF助手-v<semantic-version>-android-<yyyyMMdd>.apk
 ```
 
-Use the software version as the semantic version. The current software version is `1.1.0`.
+Use the software version as the semantic version. The current software version is `1.2.0`.
 
 Do not overwrite an existing archived APK with the same name.
 

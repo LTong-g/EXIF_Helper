@@ -45,7 +45,7 @@ type GitHubRelease = {
 
 const PROJECT_HOME_URL = 'https://github.com/LTong-g/EXIF_Helper';
 const LATEST_RELEASE_URL = 'https://api.github.com/repos/LTong-g/EXIF_Helper/releases/latest';
-const FALLBACK_VERSION = '1.1.0';
+const FALLBACK_VERSION = '1.2.0';
 
 export function MoreScreen({
   onBack,

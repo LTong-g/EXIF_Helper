@@ -17,7 +17,7 @@ export function VersionHistoryScreen({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <VersionNode number="Unreleased" title="元数据编辑入口" date="未发布">
+        <VersionNode number="v1.2.0" title="元数据编辑入口" date="2026-06-11">
           <VersionGroup title="新增">
             <Bullet text="首页新增“元数据编辑”入口，并作为独立页面进入。" />
             <Bullet text="支持选择单张照片，手动编辑当前克隆流程支持的时间、位置、相机、镜头和曝光元数据。" />

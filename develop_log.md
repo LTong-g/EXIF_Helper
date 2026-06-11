@@ -989,3 +989,36 @@
 - 已将“元数据编辑”入口左侧图标调整为由笔尾、笔身和笔尖组成的铅笔图形。
 - 铅笔图标最终使用 `110deg` 旋转角度，呈斜向且笔尖朝左下，避免 45° 倍数角度带来的死板观感。
 - 本轮只调整首页入口视觉样式，不改变导航、元数据编辑逻辑、原生写入逻辑或 PNG 处理流程。
+
+### 更新软件版本号到 1.2.0
+
+- 用户要求做发布准备，并将软件版本号提升到 `1.2.0`。
+- 已将 `package.json`、`package-lock.json` 和 `app.json` 的软件版本更新为 `1.2.0`。
+- 已将 Android `versionName` 更新为 `1.2.0`，并将 Android `versionCode` 从 `3` 提升到 `4`。
+- 已将更多页版本读取失败兜底值更新为 `1.2.0`。
+- 已将版本记录页顶部 `Unreleased` 节点定版为 `v1.2.0`，发布日期为 `2026-06-11`。
+- 已同步 `README.md` 和 `AGENTS.md` 中当前软件版本号为 `1.2.0`。
+
+### 验证并归档 1.2.0 Release APK
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误，命令输出显示项目版本为 `exif-helper@1.2.0`。
+- 已执行 `git diff --check`，未报告空白错误。
+- 首次执行 `gradlew.bat assembleRelease --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败。
+- 已按授权规则提权重新执行 `gradlew.bat assembleRelease --console=plain`，Android release 构建成功，输出包含 JS bundle 生成、`:app:packageRelease`、`:app:assembleRelease` 和 `BUILD SUCCESSFUL`。
+- 构建输出包含 release Manifest 中移除 `RECORD_AUDIO` 和 `SYSTEM_ALERT_WINDOW` 时没有对应声明的警告、既有 `TAG_ISO_SPEED_RATINGS` 弃用警告、Expo `NODE_ENV` 提示和 Gradle 弃用提示，但未导致构建失败。
+- 已通过 Android SDK `aapt` 检查 Release APK，确认包名为 `com.local.exifhelper`，`versionCode=4`，`versionName=1.2.0`，`minSdk=24`，`targetSdk=35`。
+- 已检查 Release APK 权限，包含用户主动检查更新所需的 `android.permission.INTERNET`、照片位置信息读取所需的 `ACCESS_MEDIA_LOCATION` 和安装更新所需的 `REQUEST_INSTALL_PACKAGES`，未发现 `android.permission.CAMERA`。
+- 已按发布归档规则确认 `dist/EXIF_Helper-v1.2.0-android-20260611.apk` 不存在，避免覆盖已归档产物。
+- 已从 Release APK 输出复制归档到 `dist/EXIF_Helper-v1.2.0-android-20260611.apk`。
+- 已计算 Release 输出和归档 APK 的 SHA-256，二者均为 `53594D2C3CA30A7F21BD2CC226E1C3DEB19E67E9822A9A2294C0BDC3E9C14218`。
+- 用户明确要求本轮构建完成后不需要安装 release 到设备，只需要安装新的 debug 到设备。
+
+### 构建并安装 1.2.0 Debug 包到真机
+
+- 已执行 `gradlew.bat assembleDebug --console=plain`，Android debug 构建成功，输出包含 `:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 构建输出包含 debug Manifest 中移除 `RECORD_AUDIO` 时没有对应声明的警告、`usesCleartextTraffic` 替换声明没有对应声明的警告、Expo `NODE_ENV` 提示和 Gradle 弃用提示，但未导致构建失败。
+- 已确认连接设备 `GMG0220C08003334` 处于 `device` 状态。
+- 已通过 Android SDK `aapt` 检查 Debug APK，确认包名为 `com.local.exifhelper.debug`，`versionCode=4`，`versionName=1.2.0`，`minSdk=24`，`targetSdk=35`。
+- 已执行 `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`，设备返回 `Success`。
+- 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上的 debug 包 `versionCode=4`、`versionName=1.2.0`，`lastUpdateTime` 为本轮安装时间。
+- 权限复核中未发现 `android.permission.CAMERA`；`android.permission.INTERNET` 已授予，`android.permission.REQUEST_INSTALL_PACKAGES` 当前未授权。
