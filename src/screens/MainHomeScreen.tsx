@@ -5,9 +5,11 @@ import { styles } from '../styles/appStyles';
 
 export function MainHomeScreen({
   onOpenClone,
+  onOpenEdit,
   onOpenMore,
 }: {
   onOpenClone: () => void;
+  onOpenEdit: () => void;
   onOpenMore: () => void;
 }) {
   return (
@@ -18,6 +20,16 @@ export function MainHomeScreen({
       </View>
 
       <ScrollView contentContainerStyle={styles.homeContent}>
+        <Pressable style={({ pressed }) => [styles.featureCard, pressed ? styles.pressed : null]} onPress={onOpenEdit}>
+          <View style={styles.featureIconEdit}>
+            <Text style={styles.featureIconText}>编</Text>
+          </View>
+          <View style={styles.featureTextBlock}>
+            <Text style={styles.featureTitle}>元数据编辑</Text>
+            <Text style={styles.featureSubtitle}>选择单张照片，手动修改支持的元数据并保存为新副本。</Text>
+          </View>
+        </Pressable>
+
         <Pressable style={({ pressed }) => [styles.featureCard, pressed ? styles.pressed : null]} onPress={onOpenClone}>
           <View style={styles.featureIcon}>
             <View style={styles.copyIconBack} />

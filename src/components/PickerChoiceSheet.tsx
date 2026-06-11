@@ -4,7 +4,7 @@ import { Modal, Pressable, Text, View } from 'react-native';
 import type { ImagePickMode } from '../native/ExifCloneModule';
 import { styles } from '../styles/appStyles';
 
-export type PickRole = 'source' | 'target';
+export type PickRole = 'source' | 'target' | 'edit';
 
 export function PickerChoiceSheet({
   visible,
@@ -17,7 +17,7 @@ export function PickerChoiceSheet({
   onClose: () => void;
   onPickMode: (mode: ImagePickMode) => void;
 }) {
-  const title = role === 'target' ? '选择目标照片' : '选择源照片';
+  const title = role === 'target' ? '选择目标照片' : role === 'edit' ? '选择要编辑的照片' : '选择源照片';
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>

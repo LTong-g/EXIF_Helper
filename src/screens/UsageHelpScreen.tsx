@@ -20,10 +20,19 @@ export function UsageHelpScreen({ onBack }: { onBack: () => void }) {
         <Text style={styles.docIntro}>本页整理软件内主要页面和常用操作方式，方便用户快速上手。</Text>
 
         <HelpSection title="首页 / 主页面">
-          <Bullet text="首页展示“元数据克隆”和“更多”两个入口。" />
+          <Bullet text="首页展示“元数据编辑”、“元数据克隆”和“更多”三个入口。" />
+          <Bullet text="点击“元数据编辑”进入单张照片元数据编辑页面。" />
           <Bullet text="点击“元数据克隆”进入照片选择流程。" />
           <Bullet text="点击“更多”进入应用信息、说明文档、隐私说明、版本记录和检查更新入口。" />
           <Bullet text="首页本身不展示克隆内容勾选项，克隆内容需要在后续页面设置。" />
+        </HelpSection>
+
+        <HelpSection title="元数据编辑页面">
+          <Bullet text="进入元数据编辑后，选择一张需要修改元数据的照片。" />
+          <Bullet text="应用会读取当前支持的元数据字段，并按时间、位置、相机、镜头和曝光分组显示输入框。" />
+          <Bullet text="修改字段后点击“保存编辑副本”，应用只写入发生变化的元数据项并生成新副本。" />
+          <Bullet text="清空已有字段会在保存副本时删除该项；没有修改内容时不会保存。" />
+          <Bullet text="元数据编辑不覆盖原照片，输出副本同样保存到 Pictures/EXIF助手。" />
         </HelpSection>
 
         <HelpSection title="选择源照片和目标照片">
@@ -43,7 +52,7 @@ export function UsageHelpScreen({ onBack }: { onBack: () => void }) {
         </HelpSection>
 
         <HelpSection title="PNG 目标照片">
-          <Bullet text="如果目标照片中包含 PNG，点击“开始克隆”时会先出现提示。" />
+          <Bullet text="如果克隆目标或编辑照片是 PNG，点击写入按钮时会先出现提示。" />
           <Bullet text="选择“继续保存 PNG”会保持 PNG 输出，但部分相册或工具可能不显示 PNG 内部元数据。" />
           <Bullet text="选择“另存为 JPEG”会把 PNG 目标另存为 JPEG 副本，再写入 EXIF；透明区域会以白底合成。" />
           <Bullet text="JPG 和 JPEG 目标不会触发 PNG 输出选择。" />

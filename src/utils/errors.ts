@@ -5,7 +5,7 @@ function getErrorMessage(error: unknown) {
   return String(error);
 }
 
-export function toUserFacingMessage(error: unknown, context: 'read' | 'pickTarget' | 'clone') {
+export function toUserFacingMessage(error: unknown, context: 'read' | 'pickTarget' | 'clone' | 'edit') {
   const rawMessage = getErrorMessage(error);
   const message = rawMessage.toLowerCase();
 
@@ -33,6 +33,9 @@ export function toUserFacingMessage(error: unknown, context: 'read' | 'pickTarge
   }
   if (context === 'pickTarget') {
     return '没有完成目标照片选择。请重新选择照片。';
+  }
+  if (context === 'edit') {
+    return '没有完成元数据编辑。请检查照片格式和修改内容后重试。';
   }
   return '没有完成克隆。请检查源照片、目标照片和勾选项后重试。';
 }

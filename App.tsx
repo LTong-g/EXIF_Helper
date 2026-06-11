@@ -8,13 +8,14 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AppDialog, type AppDialogState, type DialogTone } from './src/components/AppDialog';
 import { PickerChoiceSheet, type PickRole } from './src/components/PickerChoiceSheet';
 import { PngOutputChoiceDialog } from './src/components/PngOutputChoiceDialog';
-import { defaultSelectedTags } from './src/metadata/exifTags';
+import { allCloneTags, defaultSelectedTags } from './src/metadata/exifTags';
 import type { CloneResult, PickedPhoto } from './src/metadata/types';
 import type { RootStackParamList } from './src/navigation/types';
-import { applyClone, pickImages, readMetadata, type ImagePickMode } from './src/native/ExifCloneModule';
+import { applyClone, applyEdit, pickImages, readMetadata, type ImagePickMode } from './src/native/ExifCloneModule';
 import { CloneOptionsScreen } from './src/screens/CloneOptionsScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { MainHomeScreen } from './src/screens/MainHomeScreen';
+import { MetadataEditScreen } from './src/screens/MetadataEditScreen';
 import { MoreScreen } from './src/screens/MoreScreen';
 import { PrivacyPolicyScreen } from './src/screens/PrivacyPolicyScreen';
 import { ResultScreen } from './src/screens/ResultScreen';
@@ -37,10 +38,16 @@ export default function App() {
   const [targetMessage, setTargetMessage] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(() => new Set(defaultSelectedTags));
   const [results, setResults] = useState<CloneResult[]>([]);
+  const [editPhoto, setEditPhoto] = useState<PickedPhoto | null>(null);
+  const [editOriginalMetadata, setEditOriginalMetadata] = useState<Record<string, string>>({});
+  const [editDraftMetadata, setEditDraftMetadata] = useState<Record<string, string>>({});
+  const [editMessage, setEditMessage] = useState<string | null>(null);
+  const [editResult, setEditResult] = useState<CloneResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<AppDialogState>(null);
   const [pickerRole, setPickerRole] = useState<PickRole | null>(null);
   const [showPngOutputChoice, setShowPngOutputChoice] = useState(false);
+  const [showEditPngOutputChoice, setShowEditPngOutputChoice] = useState(false);
 
   const selectedTagCount = selectedTags.size;
 
@@ -111,6 +118,52 @@ export default function App() {
     }
   }
 
+  async function pickEditPhoto(mode: ImagePickMode) {
+    try {
+      const canReadMediaLocation = await requestMediaLocationPermission();
+      const photos = await pickImages(false, mode);
+      if (photos.length === 0) {
+        return;
+      }
+
+      if (!photos[0]) {
+        const message = '系统选择器没有返回照片，请重新选择。';
+        setEditMessage(message);
+        showDialog('选择失败', message, 'warning');
+        return;
+      }
+
+      const photo = photos[0];
+      setEditPhoto(photo);
+      setEditOriginalMetadata({});
+      setEditDraftMetadata({});
+      setEditResult(null);
+      setEditMessage('已选择照片，正在读取可编辑元数据。');
+      setBusy(true);
+      const metadata = await readMetadata(photo.uri);
+      const metadataTags = Object.keys(metadata);
+      setEditOriginalMetadata(metadata);
+      setEditDraftMetadata(metadata);
+      const gpsMissing = !metadata.GPSLatitude || !metadata.GPSLongitude;
+      if (metadataTags.length === 0) {
+        setEditMessage('已选择照片，未读取到当前版本支持的元数据。仍可手动填写字段后保存副本。');
+      } else if (!canReadMediaLocation && gpsMissing) {
+        const message = `已读取 ${metadataTags.length} 个可编辑元数据项。未获得照片位置信息权限，GPS 元数据可能被系统隐藏。`;
+        setEditMessage(message);
+        showDialog('GPS 可能被隐藏', '如果照片应包含 GPS，请允许照片位置信息权限后重新选择照片。', 'warning');
+      } else {
+        setEditMessage(`已读取 ${metadataTags.length} 个可编辑元数据项。`);
+      }
+    } catch (error) {
+      const message = `已选择照片，但${toUserFacingMessage(error, 'read')}`;
+      console.warn('读取编辑照片元数据失败', error);
+      setEditMessage(message);
+      showDialog('读取失败', message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function openPicker(role: PickRole) {
     if (!busy) {
       setPickerRole(role);
@@ -129,6 +182,9 @@ export default function App() {
     }
     if (role === 'target') {
       void pickTargets(mode);
+    }
+    if (role === 'edit') {
+      void pickEditPhoto(mode);
     }
   }
 
@@ -168,6 +224,15 @@ export default function App() {
     });
   }
 
+  function editTargetHasPng() {
+    if (!editPhoto) {
+      return false;
+    }
+    const fileName = editPhoto.fileName?.toLowerCase() || '';
+    const uri = editPhoto.uri.toLowerCase();
+    return editPhoto.mimeType === 'image/png' || fileName.endsWith('.png') || uri.includes('.png');
+  }
+
   function startCloneWithPngChoice(navigation: RootNavigation) {
     if (!sourcePhoto || targetPhotos.length === 0 || selectedTags.size === 0) {
       showDialog('无法克隆', '请确认已选择源照片、目标照片和至少一个元数据项。', 'warning');
@@ -205,6 +270,70 @@ export default function App() {
     }
   }
 
+  function changeEditValue(tag: string, value: string) {
+    setEditDraftMetadata((current) => ({ ...current, [tag]: value }));
+  }
+
+  function changedEditAttributes() {
+    return allCloneTags.reduce<Record<string, string>>((attributes, tag) => {
+      const originalValue = editOriginalMetadata[tag] || '';
+      const nextValue = editDraftMetadata[tag] || '';
+      if (nextValue !== originalValue) {
+        attributes[tag] = nextValue;
+      }
+      return attributes;
+    }, {});
+  }
+
+  function startEditWithPngChoice() {
+    if (!editPhoto) {
+      showDialog('还没有照片', '请先选择一张需要编辑元数据的照片。', 'warning');
+      return;
+    }
+    const attributes = changedEditAttributes();
+    if (Object.keys(attributes).length === 0) {
+      showDialog('没有修改内容', '请先修改至少一个元数据项，再保存编辑副本。', 'warning');
+      return;
+    }
+    if (editTargetHasPng()) {
+      setShowEditPngOutputChoice(true);
+      return;
+    }
+    void startEdit('png');
+  }
+
+  async function startEdit(pngOutputMode: 'png' | 'jpeg') {
+    if (!editPhoto) {
+      showDialog('还没有照片', '请先选择一张需要编辑元数据的照片。', 'warning');
+      return;
+    }
+    const attributes = changedEditAttributes();
+    if (Object.keys(attributes).length === 0) {
+      showDialog('没有修改内容', '请先修改至少一个元数据项，再保存编辑副本。', 'warning');
+      return;
+    }
+
+    try {
+      setShowEditPngOutputChoice(false);
+      setBusy(true);
+      const result = await applyEdit({
+        targetUri: editPhoto.uri,
+        attributes,
+        pngOutputMode,
+      });
+      setEditResult(result);
+      if (result.success) {
+        setEditOriginalMetadata(editDraftMetadata);
+      }
+      setEditMessage(result.success ? '已保存编辑副本。' : result.error || '保存失败。');
+    } catch (error) {
+      console.warn('编辑保存失败', error);
+      showDialog('保存失败', toUserFacingMessage(error, 'edit'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -215,8 +344,32 @@ export default function App() {
               {({ navigation }) => (
                 <MainHomeScreen
                   onOpenClone={() => navigation.navigate('CloneHome')}
+                  onOpenEdit={() => navigation.navigate('MetadataEdit')}
                   onOpenMore={() => navigation.navigate('More')}
                 />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="MetadataEdit">
+              {({ navigation }) => (
+                <>
+                  <MetadataEditScreen
+                    busy={busy}
+                    draftMetadata={editDraftMetadata}
+                    editMessage={editMessage}
+                    editPhoto={editPhoto}
+                    editResult={editResult}
+                    onBack={navigation.goBack}
+                    onChangeValue={changeEditValue}
+                    onPickPhoto={() => openPicker('edit')}
+                    onSave={startEditWithPngChoice}
+                  />
+                  <PngOutputChoiceDialog
+                    visible={showEditPngOutputChoice}
+                    onClose={() => setShowEditPngOutputChoice(false)}
+                    onChoosePng={() => startEdit('png')}
+                    onChooseJpeg={() => startEdit('jpeg')}
+                  />
+                </>
               )}
             </Stack.Screen>
             <Stack.Screen name="CloneHome">

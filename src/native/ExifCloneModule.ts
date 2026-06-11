@@ -1,11 +1,12 @@
 import { NativeModules } from 'react-native';
 
-import type { ApplyCloneRequest, CloneResult, PickedPhoto } from '../metadata/types';
+import type { ApplyCloneRequest, ApplyEditRequest, CloneResult, PickedPhoto } from '../metadata/types';
 
 type ExifCloneNativeModule = {
   pickImages(allowMultiple: boolean, mode: ImagePickMode): Promise<PickedPhoto[]>;
   readMetadata(uri: string): Promise<Record<string, string>>;
   applyClone(request: ApplyCloneRequest): Promise<CloneResult[]>;
+  applyEdit(request: ApplyEditRequest): Promise<CloneResult>;
   getAppInfo(): Promise<AppInfo>;
   getDownloadedUpdate(): Promise<DownloadedUpdate | null>;
   downloadUpdate(request: DownloadUpdateRequest): Promise<DownloadedUpdate>;
@@ -61,6 +62,13 @@ export function applyClone(request: ApplyCloneRequest): Promise<CloneResult[]> {
     return Promise.reject(new Error('EXIF 原生模块未加载，请使用 Android 开发构建运行。'));
   }
   return nativeModule.applyClone(request);
+}
+
+export function applyEdit(request: ApplyEditRequest): Promise<CloneResult> {
+  if (!nativeModule) {
+    return Promise.reject(new Error('EXIF 原生模块未加载，请使用 Android 开发构建运行。'));
+  }
+  return nativeModule.applyEdit(request);
 }
 
 export function getAppInfo(): Promise<AppInfo> {

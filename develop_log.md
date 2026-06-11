@@ -945,3 +945,40 @@
 - 已通过 `dumpsys package com.local.exifhelper.debug` 确认设备上的 debug 包 `versionCode=3`、`versionName=1.1.0`，`lastUpdateTime` 为本轮安装时间。
 - 已确认 debug 启动入口为 `com.local.exifhelper.debug/com.local.exifhelper.MainActivity`。
 - 权限复核中未发现 `android.permission.CAMERA`；`android.permission.INTERNET` 已授予，`android.permission.REQUEST_INSTALL_PACKAGES` 当前未授权。
+
+## 2026-06-11
+
+### 设计元数据编辑入口和页面边界
+
+- 用户要求在主页“元数据克隆”上方新增“元数据编辑”入口，并实现对应功能。
+- 用户明确要求视觉上的整页应作为独立页面注册导航，不能只在已有页面内部切换状态。
+- 用户明确要求 PNG 处理跟克隆功能里一样。
+- 目标效果：用户从首页点击“元数据编辑”进入独立页面，选择一张照片后读取当前支持的元数据字段，手动修改字段并保存编辑副本。
+- 目标效果：保存编辑副本时不覆盖原照片；当编辑照片为 PNG 时弹出与克隆一致的 PNG 输出选择，可继续保存 PNG，也可另存为 JPEG。
+- 实现方案：新增 `MetadataEdit` 导航路由和独立 `MetadataEditScreen`；复用现有选择器弹层、统一弹窗、元数据字段分组和 PNG 输出选择弹窗。
+- 实现方案：Android 原生模块新增 `applyEdit`，复用克隆流程中的目标格式识别、PNG 转 JPEG、EXIF 写入、写入后校验、输出到 `Pictures/EXIF助手` 和导出命名逻辑。
+- 风险边界：本轮只支持现有克隆流程中的时间、地理位置、时区、相机、镜头和曝光字段，不做任意 EXIF、MakerNote、RAW、HEIC 或原图覆盖编辑。
+- 本轮不做：不新增批量编辑、不新增 iOS、不新增云同步或账号能力、不修改发布版本号。
+
+### 实现元数据编辑功能
+
+- 已在首页新增“元数据编辑”入口，位置位于“元数据克隆”上方。
+- 已新增 `MetadataEdit` 导航路由和独立 `MetadataEditScreen` 页面。
+- 元数据编辑页面支持选择单张照片，读取当前支持的元数据，并按时间与时区、地理位置、相机信息、镜头信息和曝光参数分组展示输入框。
+- 编辑保存时只提交发生变化的字段；清空已有字段会在输出副本中删除对应 EXIF 标签；未修改任何字段时会提示用户先修改内容。
+- 已在 TypeScript 原生桥接中新增 `applyEdit` 请求类型和调用函数。
+- 已在 Android Kotlin 原生模块新增 `applyEdit` 方法，并复用克隆流程的目标处理函数处理 JPG、JPEG 和 PNG。
+- 已让元数据编辑中的 PNG 照片保存前使用与克隆流程相同的 PNG 输出选择弹窗。
+- 已同步 `README.md`、使用帮助页面、版本记录页和 `AGENTS.md` 项目规则，记录元数据编辑入口、独立页面边界、保存副本和 PNG 处理规则。
+
+### 验证元数据编辑实现
+
+- 已执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- 已执行 `git diff --check`，未报告空白错误；命令仅提示 Git 下次接触被修改文件时会按配置替换为 CRLF。
+- 首次执行 `gradlew.bat assembleDebug --console=plain` 因本机 Gradle wrapper 缓存锁文件访问被沙箱拒绝而失败。
+- 已按授权规则提权重新执行 `gradlew.bat assembleDebug --console=plain`，Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:packageDebug`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 构建输出仍包含既有 `TAG_ISO_SPEED_RATINGS` 弃用警告、Expo `NODE_ENV` 提示和 Gradle 弃用提示，但未导致构建失败。
+- 本轮涉及原生代码并已完成 debug 构建验证；尚未安装 debug 包到真机，也尚未在真机 UI 中用真实 JPG/PNG 执行元数据编辑保存流程。
+- Kotlin 类型声明小修后已再次执行 `npm run typecheck`，TypeScript 检查完成且未报告类型错误。
+- Kotlin 类型声明小修后已再次提权执行 `gradlew.bat assembleDebug --console=plain`，Android debug 构建成功，输出包含 `:app:compileDebugKotlin`、`:app:assembleDebug` 和 `BUILD SUCCESSFUL`。
+- 已按项目偏好将本轮修改文件统一为 CRLF 行尾，并再次执行 `git diff --check` 和 `npm run typecheck`，均未报告错误。

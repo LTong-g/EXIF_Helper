@@ -8,15 +8,18 @@ The app is intended for photos whose metadata was lost or changed after editing,
 
 - Pick one source photo.
 - Pick any number of target photos.
+- Edit supported metadata fields on a single photo and save the edited result as a new copy.
 - Open metadata cloning from the app home screen instead of placing the clone workflow directly on launch.
+- Open metadata editing from a separate app home entry and standalone navigation screen.
 - Provide a More entry for version, privacy, and permission information.
 - Provide More pages for software introduction, usage help, privacy policy, version history, project homepage, and update checks.
 - Pick photos from the system gallery/photos UI or the document/file picker.
 - Open a clone-options screen before writing.
 - Select individual metadata tags with checkbox-style switches.
 - Write jpg, jpeg, and png target copies.
-- Warn before cloning PNG targets and let the user keep PNG output or save PNG targets as JPEG copies for better metadata visibility.
+- Warn before writing PNG targets and let the user keep PNG output or save PNG targets as JPEG copies for better metadata visibility.
 - Clone capture time, timezone, GPS, camera, lens, and exposure metadata.
+- Edit capture time, timezone, GPS, camera, lens, and exposure metadata fields supported by the clone workflow.
 - Save copies to `Pictures/EXIF助手`.
 - Name exported copies from the target photo name with an `_exifhelper_yyyyMMdd_HHmmss` suffix.
 - Do not overwrite original photos.
@@ -137,3 +140,4 @@ Do not overwrite an existing archived APK with the same name.
 - Android may hide source-photo GPS metadata unless photo location metadata access is granted. Re-select the source photo after granting that permission.
 - No HEIC, RAW, or MakerNote writing.
 - PNG EXIF recognition depends on AndroidX ExifInterface and viewer compatibility. When PNG targets are selected, the app can instead save those targets as JPEG copies to improve visibility in Android gallery and EXIF tools.
+- Metadata editing currently supports the same EXIF tag set as metadata cloning. It does not provide arbitrary EXIF, MakerNote, RAW, or original-file overwrite editing.

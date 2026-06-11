@@ -26,6 +26,12 @@ export type ApplyCloneRequest = {
   pngOutputMode?: 'png' | 'jpeg';
 };
 
+export type ApplyEditRequest = {
+  targetUri: string;
+  attributes: Record<string, string>;
+  pngOutputMode?: 'png' | 'jpeg';
+};
+
 export type CloneResult = {
   targetUri: string;
   outputUri?: string;

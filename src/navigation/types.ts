@@ -1,5 +1,6 @@
 export type RootStackParamList = {
   Home: undefined;
+  MetadataEdit: undefined;
   CloneHome: undefined;
   CloneOptions: undefined;
   Result: undefined;

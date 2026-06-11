@@ -190,7 +190,7 @@ class ExifCloneModule(
 
       val sourceFile = copyUriToCache(sourceUri, "source")
       val sourceExif = ExifInterface(sourceFile.absolutePath)
-      val sourceAttributes = tags.mapNotNull { tag ->
+      val sourceAttributes: List<Pair<String, String?>> = tags.mapNotNull { tag ->
         sourceExif.getAttribute(tag)?.let { value -> tag to value }
       }
       if (sourceAttributes.isEmpty()) {
@@ -210,6 +210,33 @@ class ExifCloneModule(
       promise.resolve(results)
     } catch (error: Exception) {
       promise.reject("EXIF_CLONE_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
+  fun applyEdit(request: ReadableMap, promise: Promise) {
+    try {
+      val targetUri = request.getString("targetUri")
+        ?: throw IllegalArgumentException("targetUri is required")
+      val attributesMap = request.getMap("attributes")
+        ?: throw IllegalArgumentException("attributes is required")
+      val pngOutputMode = if (request.hasKey("pngOutputMode")) {
+        request.getString("pngOutputMode") ?: PNG_OUTPUT_MODE_PNG
+      } else {
+        PNG_OUTPUT_MODE_PNG
+      }
+      if (pngOutputMode != PNG_OUTPUT_MODE_PNG && pngOutputMode != PNG_OUTPUT_MODE_JPEG) {
+        throw IllegalArgumentException("Unsupported pngOutputMode")
+      }
+
+      val attributes = attributesMap.toExifAttributes()
+      if (attributes.isEmpty()) {
+        throw IllegalArgumentException("No supported EXIF tags selected")
+      }
+
+      promise.resolve(processTarget(targetUri, 0, attributes, pngOutputMode))
+    } catch (error: Exception) {
+      promise.reject("EXIF_EDIT_FAILED", error.message, error)
     }
   }
 
@@ -316,7 +343,7 @@ class ExifCloneModule(
   private fun processTarget(
     targetUri: String,
     index: Int,
-    sourceAttributes: List<Pair<String, String>>,
+    sourceAttributes: List<Pair<String, String?>>,
     pngOutputMode: String
   ): WritableMap {
     return try {
@@ -642,7 +669,10 @@ class ExifCloneModule(
     return sanitized.ifBlank { EXPORT_FALLBACK_BASENAME }
   }
 
-  private fun exifValuesMatch(tag: String, expected: String, actual: String?): Boolean {
+  private fun exifValuesMatch(tag: String, expected: String?, actual: String?): Boolean {
+    if (expected == null) {
+      return actual == null
+    }
     if (actual == null) {
       return false
     }
@@ -872,6 +902,20 @@ class ExifCloneModule(
       getString(index)?.let { result.add(it) }
     }
     return result
+  }
+
+  private fun ReadableMap.toExifAttributes(): List<Pair<String, String?>> {
+    val attributes = mutableListOf<Pair<String, String?>>()
+    val iterator = keySetIterator()
+    while (iterator.hasNextKey()) {
+      val tag = iterator.nextKey()
+      if (!CLONE_TAGS.contains(tag)) {
+        continue
+      }
+      val value = getString(tag)
+      attributes.add(tag to if (value == null || value.isEmpty()) null else value)
+    }
+    return attributes
   }
 
   companion object {
